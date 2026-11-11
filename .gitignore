@@ -1,0 +1,25 @@
+# Build output
+server/bin/
+server/bin-ui/
+server/*.exe
+server/*.syso
+server/build/windows/icon.ico
+server/build/appicon.png
+server/frontend/node_modules/
+server/frontend/dist/
+server/frontend/bindings/
+
+# Runtime data written next to the exe
+*.log
+config.json
+usage-cache.json
+background.txt
+
+# Screenshots of the running app show personal pictures
+docs/shots/
+
+# Your own PC address for the Kindle plugin
+claudedash.koplugin/cd_config_local.lua
+
+# Working specs and plans, kept locally only
+docs/superpowers/

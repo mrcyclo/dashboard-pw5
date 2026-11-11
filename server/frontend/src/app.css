@@ -1,0 +1,115 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: false;
+}
+@plugin "daisyui/theme" {
+  name: "claudedash";
+  default: true;
+  color-scheme: dark;
+  --color-base-100: #232f3e;
+  --color-base-200: #19212b;
+  --color-base-300: #131921;
+  --color-base-content: #f5f5f7;
+  --color-primary: #ff9900;
+  --color-primary-content: #131921;
+  --color-secondary: #febd69;
+  --color-secondary-content: #131921;
+  --color-accent: #f3a847;
+  --color-accent-content: #131921;
+  --color-neutral: #37475a;
+  --color-neutral-content: #f5f5f7;
+  --color-info: #5ab8c9;
+  --color-info-content: #0b2a30;
+  --color-success: #3fb68b;
+  --color-success-content: #06271c;
+  --color-warning: #ffd814;
+  --color-warning-content: #2b2400;
+  --color-error: #ff5b4f;
+  --color-error-content: #ffffff;
+  --radius-selector: 0.5rem;
+  --radius-field: 0.5rem;
+  --radius-box: 1rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+html, body, #app {
+  height: 100%;
+  overflow: hidden;
+}
+body {
+  user-select: none;
+  background: #131921;
+  color: #f5f5f7;
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+.font-mono {
+  font-family: Consolas, "Cascadia Mono", monospace;
+}
+.cd-glow {
+  background: radial-gradient(50% 45% at 50% 0%, rgba(255, 153, 0, 0.11) 0%, rgba(255, 153, 0, 0) 70%), #131921;
+}
+.cd-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+}
+.cd-toast {
+  border-radius: 10px;
+  background: #232f3e;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  color: #f5f5f7;
+}
+.cd-toast-success {
+  border: 1px solid rgba(63, 182, 139, 0.45);
+}
+.cd-toast-success svg {
+  color: #3fb68b;
+}
+.cd-toast-error {
+  border: 1px solid rgba(255, 91, 79, 0.5);
+}
+.cd-toast-error svg {
+  color: #ff5b4f;
+}
+.cd-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.cd-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+}
+
+input, textarea {
+  user-select: text;
+}
+
+/* daisyUI draws a second outline around a focused field; a primary border and a soft ring replace it. */
+.input:focus, .input:focus-within,
+.select:focus, .select:focus-within,
+.textarea:focus, .textarea:focus-within {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(255, 153, 0, 0.22);
+}
+/* Kept apart: a browser that does not know :open drops the whole rule that contains it. */
+.select:open {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(255, 153, 0, 0.22);
+}
+.range:focus, .range:focus-visible,
+.toggle:focus, .toggle:focus-visible,
+.btn:focus {
+  outline: none;
+}
+.btn:focus-visible, .toggle:focus-visible, .range:focus-visible {
+  box-shadow: 0 0 0 3px rgba(255, 153, 0, 0.3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin {
+    animation: none;
+  }
+}
