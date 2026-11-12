@@ -128,6 +128,8 @@ local Dashboard = InputContainer:extend{
 
     media = nil,
     media_failures = 0,
+    -- When usage was last asked for, see format.usage_retry_due.
+    usage_asked_at = nil,
     -- Bumped on every tap, so a poll that was already under way cannot overwrite
     -- what the tap just changed with the state from before it.
     media_epoch = 0,
@@ -261,6 +263,7 @@ function Dashboard:onPoll()
         return
     end
     UIManager:scheduleIn(config.interval_seconds, self.poll)
+    self.usage_asked_at = os.time()
     net.json(config, "GET", "/usage.json", USAGE_TIMEOUT, function(snapshot, err)
         if self.closed then return end
         self:applyFetch(snapshot, err)
@@ -342,6 +345,9 @@ function Dashboard:applyMedia(state, err)
 
     self.media_failures = 0
     local now = os.time()
+    if format.usage_retry_due(self.fetch_failed, self.server_error, self.usage_asked_at, now) then
+        self:onPoll()
+    end
     if format.is_settled(state, self.pending, now) then
         self.pending = nil
     else

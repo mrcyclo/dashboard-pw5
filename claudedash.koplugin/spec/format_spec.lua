@@ -355,3 +355,13 @@ eq(ask, true)
 ask, seen = format.refresh_requested(nil, json_null)
 eq(ask, false)
 eq(seen, "")
+
+-- Usage is polled every few minutes. When the last attempt never reached the
+-- PC and the PC now answers the media poll, usage is asked for again at once.
+eq(format.usage_retry_due(true, nil, 1000, 1030), true)
+eq(format.usage_retry_due(true, nil, nil, 1030), true)
+-- Not while the last attempt is still recent, or it would be asked every media poll.
+eq(format.usage_retry_due(true, nil, 1000, 1029), false)
+-- Not when usage is fine, or when the PC answered with an error of its own.
+eq(format.usage_retry_due(false, nil, 1000, 2000), false)
+eq(format.usage_retry_due(true, "Cannot reach Claude", 1000, 2000), false)

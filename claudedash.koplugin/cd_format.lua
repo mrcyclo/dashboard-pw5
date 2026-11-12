@@ -12,6 +12,8 @@ local MEDIA_BACKOFF_AFTER_FAILURES = 3
 local VOLUME_STEP = 5
 -- Seconds to wait before asking again for a picture that failed, by number of failures.
 local RETRY_DELAYS = { 60, 300, 900 }
+-- Longer than a usage request can take, so two are never in flight.
+local USAGE_RETRY_SECONDS = 30
 local MAX_FULL_REFRESH_MINUTES = 24 * 60
 -- Light and warmth arrive as Paperwhite 5 levels, 0 to 24; -1 means the PC leaves them alone.
 local LIGHT_UNSET = -1
@@ -351,6 +353,14 @@ function format.refresh_requested(seen, token)
     token = format.text_or_nil(token) or ""
     if seen == nil then return false, token end
     return token ~= "" and token ~= seen, token
+end
+
+-- True when usage should be asked for again right away: the last attempt got
+-- no answer from the PC, and the PC is answering now. server_error is set when
+-- the PC did answer but had no numbers, which asking again would not change.
+function format.usage_retry_due(fetch_failed, server_error, asked_at, now)
+    if not fetch_failed or server_error then return false end
+    return asked_at == nil or now - asked_at >= USAGE_RETRY_SECONDS
 end
 
 -- A PC that stopped answering is polled less often, so a blocked request does
