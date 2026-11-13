@@ -97,6 +97,12 @@ func (n Node) Disabled() Node {
 	return n
 }
 
+// Plain draws a button as its icon only, without the round frame.
+func (n Node) Plain() Node {
+	n["plain"] = true
+	return n
+}
+
 func (n Node) Patch(ops ...PatchOp) Node {
 	n["patch"] = ops
 	return n
