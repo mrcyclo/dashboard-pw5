@@ -8,6 +8,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -15,8 +16,10 @@ import (
 	"claudedash/internal/applog"
 	"claudedash/internal/background"
 	"claudedash/internal/config"
+	"claudedash/internal/grid"
 	"claudedash/internal/media"
 	"claudedash/internal/usage"
+	"claudedash/internal/widget"
 )
 
 var now = time.Date(2026, 11, 11, 14, 30, 0, 0, time.UTC)
@@ -89,6 +92,7 @@ type harness struct {
 	pick        string
 	pickErr     error
 	opened      []string
+	commands    []string
 }
 
 func newHarness(t *testing.T) *harness {
@@ -112,8 +116,12 @@ func newHarness(t *testing.T) *harness {
 		Media:      h.media,
 		Clients:    h.clients,
 		Background: h.background,
-		Log:        h.log,
-		Autostart:  h.autostart,
+		Widgets: widget.Default(func(cmd string) (media.State, error) {
+			h.commands = append(h.commands, cmd)
+			return media.State{}, nil
+		}),
+		Log:       h.log,
+		Autostart: h.autostart,
 		TokenExpiry: func() (time.Time, error) {
 			return h.tokenExpiry, h.tokenErr
 		},
@@ -661,5 +669,168 @@ func TestSaveDisplayLights(t *testing.T) {
 	d.Frontlight = 25
 	if _, err := h.app.SaveDisplay(d); err == nil {
 		t.Fatal("a light above the top level must be rejected")
+	}
+}
+
+func placement(s State, kind string) grid.Placement {
+	for _, p := range s.Widgets.Layout {
+		if p.Kind == kind {
+			return p
+		}
+	}
+	return grid.Placement{}
+}
+
+func TestWidgetsInState(t *testing.T) {
+	s := newHarness(t).app.GetState()
+	if len(s.Widgets.Catalog) != 3 || s.Widgets.Catalog[1].Kind != "claude" || s.Widgets.Catalog[1].Label != "Claude usage" {
+		t.Fatalf("catalog %+v", s.Widgets.Catalog)
+	}
+	if !reflect.DeepEqual(s.Widgets.Catalog[0].Sizes, []string{"3x1", "6x1"}) || s.Widgets.Catalog[2].Icon != "music" {
+		t.Fatalf("catalog %+v", s.Widgets.Catalog)
+	}
+	if !reflect.DeepEqual(s.Widgets.Layout, config.DefaultLayout()) {
+		t.Fatalf("layout %+v", s.Widgets.Layout)
+	}
+	if len(s.Widgets.Screen.Widgets) != 3 {
+		t.Fatalf("screen %+v", s.Widgets.Screen)
+	}
+}
+
+func TestHideRemembersAndShowReturns(t *testing.T) {
+	h := newHarness(t)
+	s, err := h.app.SetWidgetSize("media", "none")
+	if err != nil || placement(s, "media") != (grid.Placement{Kind: "media", Size: "none", Col: 0, Row: 6}) {
+		t.Fatalf("%+v %v", placement(s, "media"), err)
+	}
+	if len(s.Widgets.Screen.Widgets) != 2 {
+		t.Fatal("a hidden widget leaves the screen")
+	}
+	s, err = h.app.SetWidgetSize("media", "6x1")
+	if err != nil || placement(s, "media") != (grid.Placement{Kind: "media", Size: "6x1", Col: 0, Row: 6}) {
+		t.Fatalf("%+v %v", placement(s, "media"), err)
+	}
+	if saved := h.saved(t).Layout; !reflect.DeepEqual(saved, s.Widgets.Layout) {
+		t.Fatalf("saved %+v", saved)
+	}
+}
+
+func TestResizeMovesToNearestFreeSpot(t *testing.T) {
+	h := newHarness(t)
+	s, err := h.app.SetWidgetSize("clock", "6x1")
+	if err != nil || placement(s, "clock") != (grid.Placement{Kind: "clock", Size: "6x1", Col: 0, Row: 3}) {
+		t.Fatalf("%+v %v", placement(s, "clock"), err)
+	}
+}
+
+func TestNoRoomLeavesEverythingAlone(t *testing.T) {
+	h := newHarness(t)
+	steps := []func() (State, error){
+		func() (State, error) { return h.app.SetWidgetSize("claude", "3x3") },
+		func() (State, error) { return h.app.MoveWidget("claude", 0, 2) },
+		func() (State, error) { return h.app.SetWidgetSize("media", "6x1") },
+		func() (State, error) { return h.app.MoveWidget("media", 0, 5) },
+		func() (State, error) { return h.app.MoveWidget("clock", 3, 6) },
+	}
+	for i, step := range steps {
+		if _, err := step(); err != nil {
+			t.Fatalf("step %d: %v", i, err)
+		}
+	}
+	before := h.app.GetState().Widgets.Layout
+	saved := h.saved(t).Layout
+	// No two full free rows are left next to each other, so a 6x2 music widget fits nowhere.
+	_, err := h.app.SetWidgetSize("media", "6x2")
+	if err == nil || err.Error() != "No room for this size. Move or hide another widget first" {
+		t.Fatalf("err %v", err)
+	}
+	if !reflect.DeepEqual(h.app.GetState().Widgets.Layout, before) || !reflect.DeepEqual(h.saved(t).Layout, saved) {
+		t.Fatal("a failed resize changes nothing")
+	}
+}
+
+func TestMoveWidget(t *testing.T) {
+	h := newHarness(t)
+	s, err := h.app.MoveWidget("media", 0, 3)
+	if err != nil || placement(s, "media").Row != 3 {
+		t.Fatalf("%+v %v", placement(s, "media"), err)
+	}
+	for _, spot := range [][2]int{{3, 0}, {0, 2}, {0, 7}} {
+		if _, err := h.app.MoveWidget("media", spot[0], spot[1]); err == nil || err.Error() != "That spot is taken" {
+			t.Errorf("%v: %v", spot, err)
+		}
+	}
+	if _, err := h.app.MoveWidget("media", 0, 4); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestMoveHiddenWidgetIsRefused(t *testing.T) {
+	h := newHarness(t)
+	h.app.SetWidgetSize("media", "none")
+	if _, err := h.app.MoveWidget("media", 0, 3); err == nil {
+		t.Fatal("a hidden widget cannot be moved")
+	}
+}
+
+func TestUnknownWidgetOrSize(t *testing.T) {
+	h := newHarness(t)
+	for _, c := range [][2]string{{"weather", "3x1"}, {"clock", "6x2"}, {"clock", "big"}} {
+		if _, err := h.app.SetWidgetSize(c[0], c[1]); err == nil || err.Error() != "Unknown widget or size" {
+			t.Errorf("%v: %v", c, err)
+		}
+	}
+}
+
+func TestLayoutChangeRolledBackWhenSaveFails(t *testing.T) {
+	h := newHarness(t)
+	h.app.deps.ConfigPath = filepath.Join(h.dir, "missing-folder", "config.json")
+	s, err := h.app.SetWidgetSize("media", "none")
+	if err == nil || placement(s, "media").Size != "6x2" {
+		t.Fatalf("%+v %v", placement(s, "media"), err)
+	}
+}
+
+func TestKindleBatteryFromScreenPoll(t *testing.T) {
+	h := newHarness(t)
+	if h.app.GetState().Kindle.Battery != nil {
+		t.Fatal("unknown until the Kindle reports it")
+	}
+	h.app.Screen(76, true)
+	h.app.Screen(0, false)
+	if b := h.app.GetState().Kindle.Battery; b == nil || *b != 76 {
+		t.Fatalf("battery %v", b)
+	}
+}
+
+func TestActRunsWidgetActions(t *testing.T) {
+	h := newHarness(t)
+	if err := h.app.Act("media.next"); err != nil || !reflect.DeepEqual(h.commands, []string{"next"}) {
+		t.Fatalf("%v %v", err, h.commands)
+	}
+	if err := h.app.Act("media.explode"); !errors.Is(err, widget.ErrUnknownAction) {
+		t.Fatal(err)
+	}
+}
+
+func TestUnknownKindsInConfigAreDropped(t *testing.T) {
+	h := newHarness(t)
+	cfg := config.Default()
+	cfg.Layout = []grid.Placement{
+		{Kind: "weather", Size: "3x1", Col: 0, Row: 3},
+		{Kind: "clock", Size: "6x1", Col: 0, Row: 0 + 1},
+	}
+	h.app = New(Deps{ConfigPath: h.configPath, Config: cfg, Usage: h.usage, Media: h.media, Clients: h.clients,
+		Background: h.background, Log: h.log, Widgets: widget.Default(nil),
+		TokenExpiry: func() (time.Time, error) { return h.tokenExpiry, nil }, LanIP: func() string { return "" },
+		Now: func() time.Time { return now }})
+	got := h.app.GetState().Widgets.Layout
+	want := []grid.Placement{
+		{Kind: "clock", Size: "6x1", Col: 0, Row: 1},
+		{Kind: "claude", Size: "none"},
+		{Kind: "media", Size: "none"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %+v", got)
 	}
 }

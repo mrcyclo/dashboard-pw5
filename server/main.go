@@ -25,6 +25,7 @@ import (
 	"claudedash/internal/media/winmedia"
 	"claudedash/internal/tokensource"
 	"claudedash/internal/usage"
+	"claudedash/internal/widget"
 )
 
 //go:embed all:frontend/dist
@@ -86,6 +87,7 @@ func main() {
 	usagePoll := newPoller(service, time.Duration(cfg.CacheSeconds)*time.Second)
 	lan := &lanServer{log: lg}
 	sh := &shell{}
+	widgets := widget.Default(mediaService.Do)
 
 	app := desk.New(desk.Deps{
 		ConfigPath:       configPath,
@@ -95,6 +97,7 @@ func main() {
 		Media:            mediaService,
 		Clients:          lan,
 		Background:       backdrop,
+		Widgets:          widgets,
 		Log:              lg,
 		Autostart:        startup{exePath: exePath},
 		TokenExpiry:      tokens.expiry,
@@ -110,7 +113,7 @@ func main() {
 	})
 
 	lan.watch = httpd.WatchClients(
-		httpd.NewHandler(service.Latest, mediaService, backdrop, app),
+		httpd.WithScreens(httpd.NewHandler(service.Latest, mediaService, backdrop, app), app, backdrop, app),
 		time.Now,
 		func(format string, args ...any) { lg.Add(applog.Kindle, format, args...) },
 	)

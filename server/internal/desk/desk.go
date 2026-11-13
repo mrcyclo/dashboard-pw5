@@ -14,8 +14,10 @@ import (
 	"claudedash/internal/applog"
 	"claudedash/internal/background"
 	"claudedash/internal/config"
+	"claudedash/internal/grid"
 	"claudedash/internal/media"
 	"claudedash/internal/usage"
+	"claudedash/internal/widget"
 )
 
 // A Kindle that has not called for this long is shown as disconnected. It
@@ -64,6 +66,7 @@ type Deps struct {
 	Media      MediaSource
 	Clients    ClientSource
 	Background *background.Store
+	Widgets    *widget.Catalog
 	Log        *applog.Log
 	Autostart  Autostart
 
@@ -92,6 +95,23 @@ type KindleState struct {
 	Connected bool   `json:"connected"`
 	IP        string `json:"ip,omitempty"`
 	LastSeen  int64  `json:"last_seen,omitempty"`
+	// Battery is the charge the Kindle reported with its last screen poll.
+	Battery *int `json:"battery,omitempty"`
+}
+
+type WidgetKind struct {
+	Kind  string   `json:"kind"`
+	Label string   `json:"label"`
+	Icon  string   `json:"icon"`
+	Sizes []string `json:"sizes"`
+}
+
+type WidgetsState struct {
+	Catalog []WidgetKind `json:"catalog"`
+	// Layout has one placement per catalog kind, in catalog order; hidden ones have size "none".
+	Layout []grid.Placement `json:"layout"`
+	// Screen is exactly what the Kindle is sent, for the window's preview.
+	Screen widget.Screen `json:"screen"`
 }
 
 type BackgroundState struct {
@@ -120,6 +140,7 @@ type State struct {
 	Background BackgroundState `json:"background"`
 	Display    config.Display  `json:"display"`
 	Settings   Settings        `json:"settings"`
+	Widgets    WidgetsState    `json:"widgets"`
 	// Address is what goes into the Kindle's config: http://<LAN IP>:<port>.
 	Address string `json:"address"`
 	// Listening is false when the port could not be opened, so nothing can reach this PC.
@@ -130,7 +151,7 @@ type State struct {
 type App struct {
 	deps Deps
 
-	// saving serializes SaveSettings: two port changes must not interleave.
+	// saving serializes SaveSettings and layout changes.
 	saving sync.Mutex
 
 	mu          sync.Mutex
@@ -138,13 +159,39 @@ type App struct {
 	lastRefresh time.Time
 	// Changes each time the user asks the Kindle to repaint; "" until the first time.
 	refreshToken string
+	battery      *int
 }
 
 func New(d Deps) *App {
 	if d.Now == nil {
 		d.Now = time.Now
 	}
-	return &App{deps: d, config: d.Config}
+	if d.Widgets == nil {
+		d.Widgets = widget.Default(nil)
+	}
+	cfg := d.Config
+	cfg.Layout = fitCatalog(d.Widgets, cfg.Layout)
+	return &App{deps: d, config: cfg}
+}
+
+// fitCatalog keeps one placement per catalog kind, in catalog order: kinds this
+// build does not know are dropped, and kinds the config never saw start hidden.
+func fitCatalog(c *widget.Catalog, layout []grid.Placement) []grid.Placement {
+	out := []grid.Placement{}
+	for _, k := range c.All() {
+		p := grid.Placement{Kind: k.Name(), Size: grid.None}
+		for _, saved := range layout {
+			if saved.Kind != k.Name() {
+				continue
+			}
+			p = saved
+			if saved.Size != grid.None && !c.Supports(saved.Kind, saved.Size) {
+				p.Size = grid.None
+			}
+		}
+		out = append(out, p)
+	}
+	return out
 }
 
 // Display implements httpd.DisplaySource.
@@ -201,6 +248,17 @@ func (a *App) GetState() State {
 	if a.deps.Media != nil {
 		state.Media = a.deps.Media.Snapshot()
 	}
+	state.Widgets = WidgetsState{
+		Catalog: a.catalog(),
+		Layout:  cfg.Layout,
+		Screen:  widget.BuildScreen(a.deps.Widgets, cfg.Layout, widget.Data{Now: now, Usage: snapshot, Media: state.Media}),
+	}
+	a.mu.Lock()
+	if a.battery != nil {
+		level := *a.battery
+		state.Kindle.Battery = &level
+	}
+	a.mu.Unlock()
 	if a.deps.Autostart != nil {
 		state.Settings.Autostart, _ = a.deps.Autostart.Enabled()
 	}
@@ -468,4 +526,117 @@ func (a *App) OpenLogFile() error {
 
 func (a *App) OpenDataFolder() error {
 	return a.deps.OpenPath(filepath.Dir(a.deps.ConfigPath))
+}
+
+func (a *App) catalog() []WidgetKind {
+	var out []WidgetKind
+	for _, k := range a.deps.Widgets.All() {
+		out = append(out, WidgetKind{Kind: k.Name(), Label: k.Label(), Icon: k.Icon(), Sizes: k.Sizes()})
+	}
+	return out
+}
+
+// Screen implements httpd.ScreenSource: it is the Kindle's poll.
+func (a *App) Screen(battery int, ok bool) widget.Screen {
+	a.mu.Lock()
+	if ok {
+		a.battery = &battery
+	}
+	layout := a.config.Layout
+	a.mu.Unlock()
+
+	d := widget.Data{Now: a.deps.Now(), Usage: a.deps.Usage.Latest()}
+	if a.deps.Media != nil {
+		d.Media = a.deps.Media.Snapshot()
+	}
+	return widget.BuildScreen(a.deps.Widgets, layout, d)
+}
+
+// Act implements httpd.ScreenSource: it runs a widget button's action.
+func (a *App) Act(name string) error {
+	action, ok := a.deps.Widgets.Action(name)
+	if !ok {
+		return widget.ErrUnknownAction
+	}
+	return action()
+}
+
+var (
+	errUnknownWidget = errors.New("Unknown widget or size")
+	errNoRoom        = errors.New("No room for this size. Move or hide another widget first")
+	errSpotTaken     = errors.New("That spot is taken")
+)
+
+// SetWidgetSize shows, hides or resizes a widget. "none" hides it and keeps
+// its spot for when it comes back.
+func (a *App) SetWidgetSize(kind, size string) (State, error) {
+	if size != grid.None && !a.deps.Widgets.Supports(kind, size) {
+		return a.GetState(), errUnknownWidget
+	}
+	if _, known := a.deps.Widgets.Get(kind); !known {
+		return a.GetState(), errUnknownWidget
+	}
+
+	err := a.updateLayout(kind, func(layout []grid.Placement, p *grid.Placement) error {
+		if size == grid.None {
+			p.Size = grid.None
+			return nil
+		}
+		wanted, _ := grid.ParseSize(size)
+		place := grid.Resize
+		if p.Size == grid.None {
+			place = grid.Show
+		}
+		col, row, ok := place(layout, kind, wanted)
+		if !ok {
+			return errNoRoom
+		}
+		p.Size, p.Col, p.Row = size, col, row
+		return nil
+	})
+	return a.GetState(), err
+}
+
+// MoveWidget puts a visible widget's top-left corner on another cell.
+func (a *App) MoveWidget(kind string, col, row int) (State, error) {
+	err := a.updateLayout(kind, func(layout []grid.Placement, p *grid.Placement) error {
+		size, visible := p.Visible()
+		if !visible || !grid.Fits(layout, kind, size, col, row) {
+			return errSpotTaken
+		}
+		p.Col, p.Row = col, row
+		return nil
+	})
+	return a.GetState(), err
+}
+
+// updateLayout changes one kind's placement and saves; nothing changes on any error.
+func (a *App) updateLayout(kind string, change func(layout []grid.Placement, p *grid.Placement) error) error {
+	// Two quick changes must not each start from the same old layout.
+	a.saving.Lock()
+	defer a.saving.Unlock()
+
+	a.mu.Lock()
+	layout := append([]grid.Placement(nil), a.config.Layout...)
+	a.mu.Unlock()
+
+	index := -1
+	for i, p := range layout {
+		if p.Kind == kind {
+			index = i
+		}
+	}
+	if index < 0 {
+		return errUnknownWidget
+	}
+	if err := change(layout, &layout[index]); err != nil {
+		return err
+	}
+	if err := a.update(func(c *config.Config) { c.Layout = layout }); err != nil {
+		a.deps.Log.Add(applog.System, "could not save the widget layout: %v", err)
+		return errors.New(messageSaveFailed)
+	}
+	p := layout[index]
+	a.deps.Log.Add(applog.Kindle, "widget layout changed: %s %s at %d,%d", p.Kind, p.Size, p.Col, p.Row)
+	return nil
 }
