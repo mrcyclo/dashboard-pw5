@@ -143,7 +143,9 @@ func (d Display) Show(img *image.Gray, r image.Rectangle, flash bool) error {
 	if err != nil {
 		return err
 	}
-	cmd := fmt.Sprintf("%s -q -g file=%s,x=%d,y=%d -W GL16", d.FBInk, filepath.ToSlash(path), r.Min.X, r.Min.Y)
+	// AUTO lets the panel pick the waveform for the content, as KOReader does;
+	// GL16 is made for text and renders dithered pictures poorly.
+	cmd := fmt.Sprintf("%s -q -g file=%s,x=%d,y=%d -W AUTO", d.FBInk, filepath.ToSlash(path), r.Min.X, r.Min.Y)
 	if flash {
 		cmd += " -f"
 	}

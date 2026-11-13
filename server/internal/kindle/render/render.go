@@ -259,7 +259,7 @@ func (p painter) image(r image.Rectangle, key string) {
 	}
 	scaled := image.NewGray(image.Rect(0, 0, r.Dx(), r.Dy()))
 	xdraw.ApproxBiLinear.Scale(scaled, scaled.Bounds(), img, img.Bounds(), xdraw.Src, nil)
-	dither(scaled)
+	dither(scaled, r.Min)
 	xdraw.Draw(p.dst, r, scaled, image.Point{}, xdraw.Src)
 }
 

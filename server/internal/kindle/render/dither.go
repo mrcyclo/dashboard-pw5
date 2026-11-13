@@ -40,31 +40,37 @@ func backdrop(background *image.Gray, frost float64, panels []image.Rectangle) *
 	for _, r := range panels {
 		p.lighten(r, frost)
 	}
-	dither(img)
+	dither(img, image.Point{})
 	lastBackdrop.key, lastBackdrop.img = key, img
 	return img
 }
 
-// dither rounds every pixel to the panel's grays with Floyd-Steinberg error diffusion.
-func dither(img *image.Gray) {
+// threshold8x8 is the ordered dither map KOReader uses (ImageMagick's o8x8).
+var threshold8x8 = [64]int{
+	1, 49, 13, 61, 4, 52, 16, 64,
+	33, 17, 45, 29, 36, 20, 48, 32,
+	9, 57, 5, 53, 12, 60, 8, 56,
+	41, 25, 37, 21, 44, 28, 40, 24,
+	3, 51, 15, 63, 2, 50, 14, 62,
+	35, 19, 47, 31, 34, 18, 46, 30,
+	11, 59, 7, 55, 10, 58, 6, 54,
+	43, 27, 39, 23, 42, 26, 38, 22,
+}
+
+// dither rounds every pixel to the panel's grays with an 8x8 ordered pattern.
+// origin is where the image sits on screen, so the pattern lines up across images.
+func dither(img *image.Gray, origin image.Point) {
 	b := img.Bounds()
-	w := b.Dx()
-	// Errors in sixteenths, with a spare column on each side.
-	cur := make([]int, w+2)
-	next := make([]int, w+2)
 	for y := b.Min.Y; y < b.Max.Y; y++ {
 		row := img.Pix[(y-b.Min.Y)*img.Stride:]
-		for x := 0; x < w; x++ {
-			v := int(row[x]) + cur[x+1]/16
-			q := min(max((v+grayStep/2)/grayStep, 0), 255/grayStep) * grayStep
-			row[x] = uint8(q)
-			e := v - q
-			cur[x+2] += e * 7
-			next[x] += e * 3
-			next[x+1] += e * 5
-			next[x+2] += e
+		for x := 0; x < b.Dx(); x++ {
+			// Spread 0..255 over 15 steps of 64 sub-levels each.
+			t := (int(row[x])*(15*64+1) + 127) / 255
+			level := t / 64
+			if t%64 >= threshold8x8[(origin.X+x)&7+8*((origin.Y+y)&7)] {
+				level++
+			}
+			row[x] = uint8(min(level*grayStep, 255))
 		}
-		cur, next = next, cur
-		clear(next)
 	}
 }

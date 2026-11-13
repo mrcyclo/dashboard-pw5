@@ -93,7 +93,7 @@ func TestDisplayShowsARegion(t *testing.T) {
 	if err := d.Show(img, image.Rect(10, 20, 40, 60), false); err != nil {
 		t.Fatal(err)
 	}
-	if len(r.commands) != 1 || r.commands[0] != "/fb -q -g file="+filepath.ToSlash(filepath.Join(dir, "region.png"))+",x=10,y=20 -W GL16" {
+	if len(r.commands) != 1 || r.commands[0] != "/fb -q -g file="+filepath.ToSlash(filepath.Join(dir, "region.png"))+",x=10,y=20 -W AUTO" {
 		t.Fatalf("%v", r.commands)
 	}
 	file, _ := os.Open(filepath.Join(dir, "region.png"))
@@ -105,7 +105,7 @@ func TestDisplayShowsARegion(t *testing.T) {
 
 	r.commands = nil
 	d.Full(img, true)
-	if !strings.HasSuffix(r.commands[0], ",x=0,y=0 -W GL16 -f") {
+	if !strings.HasSuffix(r.commands[0], ",x=0,y=0 -W AUTO -f") {
 		t.Fatalf("%v", r.commands)
 	}
 

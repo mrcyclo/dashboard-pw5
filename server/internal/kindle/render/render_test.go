@@ -235,3 +235,20 @@ func TestPictureIsDitheredToThePanelsGrays(t *testing.T) {
 		}
 	}
 }
+
+// Ordered dithering, as KOReader does, gives a flat shade an even pattern that
+// lines up across regions drawn at different times.
+func TestFlatShadeGetsARegularPattern(t *testing.T) {
+	flat := image.NewGray(image.Rect(0, 0, 64, 64))
+	for i := range flat.Pix {
+		flat.Pix[i] = 128
+	}
+	dither(flat, image.Point{})
+	for y := 0; y < 56; y++ {
+		for x := 0; x < 56; x++ {
+			if flat.GrayAt(x, y) != flat.GrayAt(x+8, y) || flat.GrayAt(x, y) != flat.GrayAt(x, y+8) {
+				t.Fatalf("the pattern repeats every 8 pixels, broken at (%d,%d)", x, y)
+			}
+		}
+	}
+}
