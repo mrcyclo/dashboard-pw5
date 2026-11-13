@@ -10,7 +10,7 @@ import (
 func testLayout() []grid.Placement {
 	return []grid.Placement{
 		{Kind: "clock", Size: "3x1", Col: 0, Row: 0},
-		{Kind: "claude", Size: "6x2", Col: 0, Row: 1},
+		{Kind: "claude", Size: "6x1", Col: 0, Row: 1},
 		{Kind: "media", Size: grid.None, Col: 0, Row: 6},
 		{Kind: "weather", Size: "3x1", Col: 0, Row: 3},
 	}
@@ -30,7 +30,7 @@ func TestBuildScreenSkipsHiddenAndUnknown(t *testing.T) {
 
 func TestBuildScreenRectsFromGrid(t *testing.T) {
 	s := BuildScreen(Default(nil), testLayout(), Data{Now: testNow})
-	if got := s.Widgets[1].Rect; got != (grid.Rect{X: 48, Y: 244, W: 1140, H: 376}) {
+	if got := s.Widgets[1].Rect; got != (grid.Rect{X: 48, Y: 244, W: 1140, H: 180}) {
 		t.Fatalf("claude rect %+v", got)
 	}
 }

@@ -174,6 +174,18 @@ func New(d Deps) *App {
 	return &App{deps: d, config: cfg}
 }
 
+// retiredSize replaces a size this build no longer offers with the first one
+// that fits in the same spot, or hides the widget when none does.
+func retiredSize(k widget.Kind, layout []grid.Placement, saved grid.Placement) string {
+	for _, size := range k.Sizes() {
+		parsed, ok := grid.ParseSize(size)
+		if ok && grid.Fits(layout, saved.Kind, parsed, saved.Col, saved.Row) {
+			return size
+		}
+	}
+	return grid.None
+}
+
 // unknownKinds are placements of widgets a newer build added. They are kept and
 // saved back untouched, so going back to that build finds them where they were.
 func unknownKinds(c *widget.Catalog, layout []grid.Placement) []grid.Placement {
@@ -222,7 +234,7 @@ func fitCatalog(c *widget.Catalog, layout []grid.Placement) []grid.Placement {
 			}
 			p = saved
 			if saved.Size != grid.None && !c.Supports(saved.Kind, saved.Size) {
-				p.Size = grid.None
+				p.Size = retiredSize(k, layout, saved)
 			}
 		}
 		out = append(out, p)

@@ -47,7 +47,7 @@ The Kindle screen is a grid of 6 columns by 8 rows. The top right corner (row 1,
 | Widget | Sizes |
 |---|---|
 | Clock | 3×1, 6×1 |
-| Claude usage | 6×2, 3×3 (at most four limits) |
+| Claude usage | 6×1, 3×2 (at most four limits) |
 | Music | 6×2, 6×1 (without the volume row) |
 
 The PC describes every widget as a small tree of components (text, bars, icons, pictures, buttons, a clock and a countdown) and the Kindle only draws them. The clock, the countdowns and the drop to 0% at a reset are worked out on the Kindle, so they stay right while the PC is off; the rest shows its last state, and the corner says `PC offline`. The Kindle keeps the last screen on disk and shows it again after a restart.

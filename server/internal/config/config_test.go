@@ -253,7 +253,7 @@ func TestLoadConvertsPercentLights(t *testing.T) {
 func TestDefaultLayout(t *testing.T) {
 	want := []grid.Placement{
 		{Kind: "clock", Size: "3x1", Col: 0, Row: 0},
-		{Kind: "claude", Size: "6x2", Col: 0, Row: 1},
+		{Kind: "claude", Size: "6x1", Col: 0, Row: 1},
 		{Kind: "media", Size: "6x2", Col: 0, Row: 6},
 	}
 	if got := DefaultLayout(); !reflect.DeepEqual(got, want) {

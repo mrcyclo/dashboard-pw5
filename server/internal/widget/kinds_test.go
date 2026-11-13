@@ -84,7 +84,7 @@ func fullSnapshot() usage.Snapshot {
 
 func TestClaudeKeepsFourBarsInOrder(t *testing.T) {
 	k := claudeKind{}
-	if !reflect.DeepEqual(k.Sizes(), []string{"6x2", "3x3"}) || k.Label() != "Claude usage" {
+	if !reflect.DeepEqual(k.Sizes(), []string{"6x1", "3x2"}) || k.Label() != "Claude usage" {
 		t.Fatal(k.Sizes(), k.Label())
 	}
 	for _, size := range k.Sizes() {
@@ -93,7 +93,7 @@ func TestClaudeKeepsFourBarsInOrder(t *testing.T) {
 			t.Fatalf("%s: %d bars", size, len(bars))
 		}
 		got := strings.Join(texts(tree), "|")
-		for _, want := range []string{"Claude · 5-hour limit", "Claude · weekly limits", "All models", "Fable only", "Opus only", "80% used"} {
+		for _, want := range []string{"5-hour", "Weekly", "Fable only", "Opus only", "80% used"} {
 			if !strings.Contains(got, want) {
 				t.Errorf("%s: missing %q in %s", size, want, got)
 			}
@@ -109,7 +109,7 @@ func TestClaudeKeepsFourBarsInOrder(t *testing.T) {
 
 func TestClaudeValuesDropToZeroAtReset(t *testing.T) {
 	snap := fullSnapshot()
-	tree := claudeKind{}.Build("6x2", Data{Now: testNow, Usage: snap})
+	tree := claudeKind{}.Build("6x1", Data{Now: testNow, Usage: snap})
 	for _, bar := range byKind(tree, "bar") {
 		at, ok := bar["at"].(map[string]any)
 		if !ok || at["set"].(map[string]any)["percent"] != 0 {
@@ -133,7 +133,7 @@ func TestClaudeValuesDropToZeroAtReset(t *testing.T) {
 
 func TestClaudeAlreadyResetShowsZero(t *testing.T) {
 	snap := usage.Snapshot{SevenDay: &usage.Window{UsedPercent: 74, ResetsAt: testNow.Unix() - 10}}
-	tree := claudeKind{}.Build("6x2", Data{Now: testNow, Usage: snap})
+	tree := claudeKind{}.Build("6x1", Data{Now: testNow, Usage: snap})
 	if got := strings.Join(texts(tree), "|"); !strings.Contains(got, "0% used") {
 		t.Fatal(got)
 	}
@@ -143,11 +143,11 @@ func TestClaudeAlreadyResetShowsZero(t *testing.T) {
 }
 
 func TestClaudeWithoutData(t *testing.T) {
-	tree := claudeKind{}.Build("6x2", Data{Now: testNow, Usage: usage.Snapshot{Error: "Cannot reach Claude"}})
+	tree := claudeKind{}.Build("6x1", Data{Now: testNow, Usage: usage.Snapshot{Error: "Cannot reach Claude"}})
 	if got := texts(tree); !reflect.DeepEqual(got, []string{"Claude", "Cannot reach Claude"}) {
 		t.Fatal(got)
 	}
-	tree = claudeKind{}.Build("3x3", Data{Now: testNow})
+	tree = claudeKind{}.Build("3x2", Data{Now: testNow})
 	if got := texts(tree); !reflect.DeepEqual(got, []string{"Claude", "No data yet"}) {
 		t.Fatal(got)
 	}

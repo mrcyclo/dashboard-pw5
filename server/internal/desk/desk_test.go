@@ -718,34 +718,40 @@ func TestHideRemembersAndShowReturns(t *testing.T) {
 func TestResizeMovesToNearestFreeSpot(t *testing.T) {
 	h := newHarness(t)
 	s, err := h.app.SetWidgetSize("clock", "6x1")
-	if err != nil || placement(s, "clock") != (grid.Placement{Kind: "clock", Size: "6x1", Col: 0, Row: 3}) {
+	if err != nil || placement(s, "clock") != (grid.Placement{Kind: "clock", Size: "6x1", Col: 0, Row: 2}) {
 		t.Fatalf("%+v %v", placement(s, "clock"), err)
 	}
 }
 
+// bigKind needs every row below the corner, so any other widget there blocks it.
+type bigKind struct{}
+
+func (bigKind) Name() string                          { return "big" }
+func (bigKind) Label() string                         { return "Big" }
+func (bigKind) Icon() string                          { return "square" }
+func (bigKind) Sizes() []string                       { return []string{"6x7"} }
+func (bigKind) Build(string, widget.Data) widget.Node { return widget.Text("big", 20) }
+
 func TestNoRoomLeavesEverythingAlone(t *testing.T) {
 	h := newHarness(t)
-	steps := []func() (State, error){
-		func() (State, error) { return h.app.SetWidgetSize("claude", "3x3") },
-		func() (State, error) { return h.app.MoveWidget("claude", 0, 2) },
-		func() (State, error) { return h.app.SetWidgetSize("media", "6x1") },
-		func() (State, error) { return h.app.MoveWidget("media", 0, 5) },
-		func() (State, error) { return h.app.MoveWidget("clock", 3, 6) },
-	}
-	for i, step := range steps {
-		if _, err := step(); err != nil {
-			t.Fatalf("step %d: %v", i, err)
-		}
-	}
+	clock, _ := widget.Default(nil).Get("clock")
+	cfg := config.Default()
+	cfg.Layout = []grid.Placement{{Kind: "clock", Size: "3x1", Col: 0, Row: 3}}
+	h.app = New(Deps{ConfigPath: h.configPath, Config: cfg, Usage: h.usage, Media: h.media, Clients: h.clients,
+		Background: h.background, Log: h.log, Widgets: widget.NewCatalog(clock, bigKind{}),
+		TokenExpiry: func() (time.Time, error) { return h.tokenExpiry, nil }, LanIP: func() string { return "" },
+		Now: func() time.Time { return now }})
 	before := h.app.GetState().Widgets.Layout
-	saved := h.saved(t).Layout
-	// No two full free rows are left next to each other, so a 6x2 music widget fits nowhere.
-	_, err := h.app.SetWidgetSize("media", "6x2")
+
+	_, err := h.app.SetWidgetSize("big", "6x7")
 	if err == nil || err.Error() != "No room for this size. Move or hide another widget first" {
 		t.Fatalf("err %v", err)
 	}
-	if !reflect.DeepEqual(h.app.GetState().Widgets.Layout, before) || !reflect.DeepEqual(h.saved(t).Layout, saved) {
+	if !reflect.DeepEqual(h.app.GetState().Widgets.Layout, before) {
 		t.Fatal("a failed resize changes nothing")
+	}
+	if _, err := os.Stat(h.configPath); err == nil {
+		t.Fatal("a failed resize writes no config")
 	}
 }
 
@@ -755,7 +761,7 @@ func TestMoveWidget(t *testing.T) {
 	if err != nil || placement(s, "media").Row != 3 {
 		t.Fatalf("%+v %v", placement(s, "media"), err)
 	}
-	for _, spot := range [][2]int{{3, 0}, {0, 2}, {0, 7}} {
+	for _, spot := range [][2]int{{3, 0}, {0, 1}, {0, 7}} {
 		if _, err := h.app.MoveWidget("media", spot[0], spot[1]); err == nil || err.Error() != "That spot is taken" {
 			t.Errorf("%v: %v", spot, err)
 		}
@@ -874,13 +880,37 @@ func TestUnknownKindsSurviveASave(t *testing.T) {
 }
 
 func TestUnknownKindsMakeWayWhenCovered(t *testing.T) {
-	weather := grid.Placement{Kind: "weather", Size: "3x1", Col: 0, Row: 3}
+	weather := grid.Placement{Kind: "weather", Size: "3x1", Col: 0, Row: 2}
 	h := newHarnessWithLayout(t, append(config.DefaultLayout(), weather))
 	if _, err := h.app.SetWidgetSize("clock", "6x1"); err != nil {
 		t.Fatal(err)
 	}
 	got, ok := savedPlacement(t, h, "weather")
-	if !ok || got.Size != grid.None || got.Col != 0 || got.Row != 3 {
+	if !ok || got.Size != grid.None || got.Col != 0 || got.Row != 2 {
 		t.Fatalf("a covered unknown widget is kept hidden in its spot: %+v %v", got, ok)
+	}
+}
+
+// A size an older build saved, and this build no longer offers, becomes the
+// first size that fits in the same spot instead of hiding the widget.
+func TestRetiredSizeBecomesAFittingOne(t *testing.T) {
+	h := newHarnessWithLayout(t, []grid.Placement{
+		{Kind: "clock", Size: "3x1", Col: 0, Row: 0},
+		{Kind: "claude", Size: "6x2", Col: 0, Row: 1},
+		{Kind: "media", Size: "6x2", Col: 0, Row: 6},
+	})
+	if got := placement(h.app.GetState(), "claude"); got != (grid.Placement{Kind: "claude", Size: "6x1", Col: 0, Row: 1}) {
+		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestRetiredSizeWithNoFitHides(t *testing.T) {
+	h := newHarnessWithLayout(t, []grid.Placement{
+		{Kind: "clock", Size: "3x1", Col: 0, Row: 0},
+		{Kind: "claude", Size: "3x3", Col: 3, Row: 0},
+		{Kind: "media", Size: "6x2", Col: 0, Row: 6},
+	})
+	if got := placement(h.app.GetState(), "claude"); got.Size != grid.None {
+		t.Fatalf("no new size fits in the reserved corner: %+v", got)
 	}
 }

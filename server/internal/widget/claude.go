@@ -9,11 +9,9 @@ import (
 
 const (
 	maxLimits = 4
-	// The API reports limits that reset together a second or so apart.
-	sameMomentSeconds = 120
 
 	claudeTitleSize = 29
-	claudeNoteSize  = 25
+	claudeCellSize  = 25
 	claudeBarHeight = 16
 )
 
@@ -22,17 +20,12 @@ type claudeKind struct{}
 func (claudeKind) Name() string    { return "claude" }
 func (claudeKind) Label() string   { return "Claude usage" }
 func (claudeKind) Icon() string    { return "chart-column" }
-func (claudeKind) Sizes() []string { return []string{"6x2", "3x3"} }
+func (claudeKind) Sizes() []string { return []string{"6x1", "3x2"} }
 
 type limit struct {
 	label    string
 	percent  int
 	resetsAt int64
-}
-
-type limitSection struct {
-	title  string
-	limits []limit
 }
 
 func newLimit(label string, used int, resetsAt, now int64) limit {
@@ -42,52 +35,29 @@ func newLimit(label string, used int, resetsAt, now int64) limit {
 	return limit{label: label, percent: used, resetsAt: resetsAt}
 }
 
-// sections keeps at most maxLimits bars: five-hour first, then weekly, then per model.
-func sections(s usage.Snapshot, now int64) []limitSection {
-	var out []limitSection
-	left := maxLimits
+// limits keeps at most maxLimits bars: five-hour first, then weekly, then per model.
+func limits(s usage.Snapshot, now int64) []limit {
+	var out []limit
 	if s.FiveHour != nil {
-		out = append(out, limitSection{
-			title:  "Claude · 5-hour limit",
-			limits: []limit{newLimit("All models", s.FiveHour.UsedPercent, s.FiveHour.ResetsAt, now)},
-		})
-		left--
+		out = append(out, newLimit("5-hour", s.FiveHour.UsedPercent, s.FiveHour.ResetsAt, now))
 	}
-	var weekly []limit
-	if s.SevenDay != nil && left > 0 {
-		weekly = append(weekly, newLimit("All models", s.SevenDay.UsedPercent, s.SevenDay.ResetsAt, now))
-		left--
+	if s.SevenDay != nil {
+		out = append(out, newLimit("Weekly", s.SevenDay.UsedPercent, s.SevenDay.ResetsAt, now))
 	}
 	for _, m := range s.Models {
-		if left == 0 {
-			break
-		}
 		if m.Name == "" {
 			continue
 		}
-		weekly = append(weekly, newLimit(m.Name+" only", m.UsedPercent, m.ResetsAt, now))
-		left--
+		out = append(out, newLimit(m.Name+" only", m.UsedPercent, m.ResetsAt, now))
 	}
-	if len(weekly) > 0 {
-		out = append(out, limitSection{title: "Claude · weekly limits", limits: weekly})
+	if len(out) > maxLimits {
+		out = out[:maxLimits]
 	}
 	return out
 }
 
-// sharedReset is the reset time every limit of a section shares, or 0.
-func sharedReset(limits []limit) int64 {
-	first := limits[0].resetsAt
-	for _, l := range limits {
-		diff := l.resetsAt - first
-		if l.resetsAt == 0 || diff <= -sameMomentSeconds || diff >= sameMomentSeconds {
-			return 0
-		}
-	}
-	return first
-}
-
 func usedText(l limit) Node {
-	n := Text(fmt.Sprintf("%d%% used", l.percent), claudeTitleSize).Bold()
+	n := Text(fmt.Sprintf("%d%% used", l.percent), claudeCellSize).Bold()
 	if l.resetsAt > 0 {
 		n.At(l.resetsAt, map[string]any{"text": "0% used"})
 	}
@@ -102,25 +72,38 @@ func limitBar(l limit) Node {
 	return n
 }
 
-// limitCell is one limit: label, "N% used" and a bar. A countdown of its own
-// shares the label's line in the wide size and gets a line below in the tall one.
-func limitCell(l limit, ownCountdown, tall bool) Node {
-	countdown := ownCountdown && l.resetsAt > 0
-	line := []Node{Text(l.label, claudeTitleSize).Bold().Grow(1)}
-	if countdown && !tall {
-		line = append(line, Countdown(l.resetsAt, claudeNoteSize).Dim())
+func countdown(l limit) (Node, bool) {
+	if l.resetsAt == 0 {
+		return nil, false
+	}
+	return Countdown(l.resetsAt, claudeCellSize).Dim(), true
+}
+
+// wideCell is a column of the 6x1 size: label and "N% used", the bar, then
+// its countdown, or the stale mark in the first column.
+func wideCell(l limit, note Node) Node {
+	cell := []Node{Row(8, Text(l.label, claudeCellSize).Bold().Grow(1), usedText(l)), limitBar(l)}
+	if note == nil {
+		note, _ = countdown(l)
+	}
+	if note != nil {
+		cell = append(cell, note)
+	}
+	return Col(4, cell...).Grow(1)
+}
+
+// tallRow is a line of the 3x2 size: label, countdown and "N% used", then the bar.
+func tallRow(l limit) Node {
+	line := []Node{Text(l.label, claudeCellSize).Bold().Grow(1)}
+	if c, ok := countdown(l); ok {
+		line = append(line, c)
 	}
 	line = append(line, usedText(l))
-	cell := []Node{Row(8, line...), limitBar(l)}
-	if countdown && tall {
-		cell = append(cell, Countdown(l.resetsAt, claudeNoteSize).Dim())
-	}
-	return Col(4, cell...)
+	return Col(4, Row(10, line...), limitBar(l))
 }
 
 func (claudeKind) Build(size string, d Data) Node {
-	now := d.Now.Unix()
-	list := sections(d.Usage, now)
+	list := limits(d.Usage, d.Now.Unix())
 	if len(list) == 0 {
 		message := d.Usage.Error
 		if message == "" {
@@ -129,50 +112,31 @@ func (claudeKind) Build(size string, d Data) Node {
 		return Col(6, Text("Claude", claudeTitleSize).Bold(), Text(message, claudeTitleSize))
 	}
 
-	tall := size == "3x3"
-	// Old numbers are marked in the first header, so the mark costs no height.
 	var stale Node
 	if d.Usage.Stale && d.Usage.FetchedAt > 0 {
 		at := time.Unix(d.Usage.FetchedAt, 0).In(d.Now.Location()).Format("15:04")
-		stale = Text("Updated "+at+" (stale)", claudeNoteSize).Dim()
+		stale = Text("Updated "+at+" (stale)", claudeCellSize).Dim()
 	}
-	var blocks []Node
-	for i, section := range list {
-		shared := sharedReset(section.limits)
-		var notes []Node
-		if i == 0 && stale != nil {
-			notes = append(notes, stale)
-		}
-		if shared > 0 {
-			notes = append(notes, Countdown(shared, claudeNoteSize).Dim())
-		}
-		header := Row(12, append([]Node{Text(section.title, claudeTitleSize).Bold().Grow(1)}, notes...)...)
-		if tall {
-			header = Col(2, Text(section.title, claudeTitleSize).Bold())
-			if len(notes) > 0 {
-				header["children"] = append(header["children"].([]Node), Row(12, notes...).Align("start"))
-			}
-		}
-		block := append([]Node{header, Rule()}, limitRows(section.limits, shared == 0, tall)...)
-		blocks = append(blocks, Col(6, block...))
-	}
-	return Col(12, blocks...)
-}
 
-// limitRows puts two limits on a line in the wide size and one per line in the tall size.
-func limitRows(limits []limit, ownCountdown, tall bool) []Node {
-	var rows []Node
-	for i := 0; i < len(limits); {
-		if tall || i+1 == len(limits) {
-			rows = append(rows, limitCell(limits[i], ownCountdown, tall))
-			i++
-			continue
+	if size == "6x1" {
+		var cells []Node
+		for i, l := range list {
+			var note Node
+			if i == 0 {
+				note = stale
+			}
+			cells = append(cells, wideCell(l, note))
 		}
-		rows = append(rows, Row(14,
-			limitCell(limits[i], ownCountdown, tall).Grow(1),
-			limitCell(limits[i+1], ownCountdown, tall).Grow(1),
-		).Align("start"))
-		i += 2
+		return Row(16, cells...).Align("start")
 	}
-	return rows
+
+	header := []Node{Text("Claude", claudeTitleSize).Bold().Grow(1)}
+	if stale != nil {
+		header = append(header, stale)
+	}
+	rows := []Node{Row(12, header...), Rule()}
+	for _, l := range list {
+		rows = append(rows, tallRow(l))
+	}
+	return Col(8, rows...)
 }
