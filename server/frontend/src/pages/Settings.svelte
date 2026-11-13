@@ -85,7 +85,7 @@
             </div>
           {:else}
             <div class="text-sm text-base-content/60">
-              On the Kindle, <span class="font-mono">port</span> in <span class="font-mono">cd_config.lua</span> must be {saved.port}
+              The Kindle finds this port on its own
             </div>
           {/if}
         </div>

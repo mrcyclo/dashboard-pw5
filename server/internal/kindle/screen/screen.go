@@ -1,6 +1,5 @@
 // Package screen turns a /screen.json reply into what has to be redrawn, and
-// keeps the last screen on disk so the dashboard can show it with the PC off,
-// like claudedash.koplugin/cd_screen.lua.
+// keeps the last screen on disk so the dashboard can show it with the PC off.
 package screen
 
 import (

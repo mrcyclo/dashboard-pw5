@@ -19,9 +19,6 @@ background.txt
 # Screenshots of the running app show personal pictures
 docs/shots/
 
-# Your own PC address for the Kindle plugin
-claudedash.koplugin/cd_config_local.lua
-
 # Working specs and plans, kept locally only
 docs/superpowers/
 

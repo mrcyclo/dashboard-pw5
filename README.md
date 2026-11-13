@@ -1,6 +1,6 @@
 # Claude Dashboard for Kindle Paperwhite 5
 
-Turns a jailbroken Kindle Paperwhite 5 running KOReader into an e-ink display for the time, the date, the battery, your Claude plan usage and the music playing on your PC.
+Turns a jailbroken Kindle Paperwhite 5 into an e-ink display for the time, the date, the battery, your Claude plan usage and the music playing on your PC.
 
 > **Unofficial tool.** This project is not affiliated with or supported by Anthropic. It reads the Claude sign-in token already stored on your machine, renews that token itself and calls an undocumented usage endpoint. This can stop working at any time, and you use it with your account at your own risk. The token never leaves your machine and never appears in logs, the window or HTTP responses.
 >
@@ -8,8 +8,8 @@ Turns a jailbroken Kindle Paperwhite 5 running KOReader into an e-ink display fo
 
 License: [MIT](LICENSE).
 
-- `server/`: `claudedash.exe`, a Windows tray application. It serves Claude usage and the current track on port 8377 of the LAN and accepts media commands.
-- `claudedash.koplugin/`: the KOReader plugin. It draws the widgets the PC describes (clock, Claude usage, music), asks the PC for them every 5 seconds, and has touch controls.
+- `server/`: `claudedash.exe`, a Windows tray application. It describes the Kindle's widgets on port 8377 of the LAN, runs their buttons, and announces itself on the LAN so the Kindle finds it. `server/cmd/claudedash-kindle` is the Kindle app.
+- `kindle/package/`: the files installed on the Kindle next to the app: the launcher, the fonts and a package manifest.
 
 ## 1. Run the application on the PC
 
@@ -30,7 +30,7 @@ The window has four pages:
 
 | Page | Used for |
 |---|---|
-| Overview | Claude usage, token status, the current track, whether the Kindle is connected, and the address to enter on the Kindle |
+| Overview | Claude usage, token status, the current track and whether the Kindle is connected |
 | Layout | Which widgets the Kindle shows, their size and where they sit on the Kindle's grid |
 | Screen | Background picture with zoom and position, panel transparency, front light and warmth, periodic and manual full refresh, polling interval |
 | Settings | Port, usage polling interval, start with Windows, minimize to tray on close |
@@ -58,7 +58,7 @@ The PC describes every widget as a small tree of components (text, bars, icons, 
 2. Add it to `widget.Default` in `catalog.go`. It appears on the Layout page, hidden until chosen.
 3. Icons it needs go in `server/internal/widget/icons/` as SVG. Buttons name an action `<kind>.<action>`, served by implementing `widget.Actor`.
 
-No change to the plugin is needed, and nothing has to be copied to the Kindle. The layout rules both sides follow are at the top of `claudedash.koplugin/cd_tree.lua`; `server/internal/widget/testdata/tree_fixtures.json` checks the Kindle and the window against each other.
+Nothing has to change or be copied on the Kindle. The layout rules both sides follow are at the top of `server/internal/tree/layout.go`; `server/internal/widget/testdata/tree_fixtures.json` checks the Kindle and the window against each other.
 
 ### About the token
 
@@ -82,9 +82,9 @@ netsh advfirewall firewall add rule name="ClaudeDash" dir=in action=allow protoc
 
 Windows must treat your home Wi-Fi as a Private network. To remove the rule: `netsh advfirewall firewall delete rule name="ClaudeDash"`.
 
-### Fixed IP
+### Finding the PC
 
-The Kindle reaches the PC by IP address, so give the PC a DHCP reservation on your router or a static IP in Windows.
+Every 2 seconds the PC broadcasts a small UDP announcement on port 8378 with its name and port, and the Kindle connects to the first PC it hears, remembering it for next time. With several PCs running the app, the corner offers a `Use <name>` button to switch. No IP address has to be entered, and the PC's address may change.
 
 ### Media control
 
@@ -95,9 +95,9 @@ The Kindle reaches the PC by IP address, so give the PC a DHCP reservation on yo
 | `GET /screen.json?battery=N` | Every visible widget with its place and tree, icon hashes, and the background, settings and refresh hashes |
 | `POST /action/<name>` | Runs a widget button's action, such as `media.next`, and answers like `/screen.json` |
 | `GET /icons/<name>.svg` | An icon named by a tree |
-| `GET /media.json` | Title, artist, application, playing or paused, volume, cover art hash |
 | `GET /media/art.png` | Grayscale cover art, fitted to 400 x 400 |
-| `POST /media/<command>` | `play-pause`, `next`, `previous`, `volume-up`, `volume-down` |
+| `GET /background.png?w=W&h=H` | The background picture, cropped and in grayscale |
+| `GET /kindle.json` | Display settings: panel transparency, light, warmth, refresh |
 
 Volume is the master volume of the default output device and changes by 5 per tap.
 
@@ -111,54 +111,55 @@ Each widget sits on its own panel that lightens the picture behind its text; the
 
 The Screen page also sets the front light and its warmth, in the Paperwhite 5's own levels 0 to 24. Until you move a slider, the Kindle keeps its own setting. `Refresh screen now` asks the Kindle for one flashing repaint of the whole screen, which clears e-ink ghosting.
 
-## 2. Install the plugin on the Kindle
+## 2. Install the app on the Kindle
 
-1. Update and start the PC app first: this plugin asks for `/screen.json`, which older PC apps do not have, and would wait for the PC forever.
-2. Create `claudedash.koplugin/cd_config_local.lua` containing `return { host = "IP of your PC" }`, using the address shown on the Overview page (add `port = ...` if you changed the port). This file overrides the sample values in `cd_config.lua` and is not tracked by git.
-3. Connect the Kindle to the PC with a USB cable.
-4. Copy the whole `claudedash.koplugin` folder to `koreader/plugins/` on the Kindle, including `icons/`. When updating from a version before widgets, delete the old `cd_layout.lua` there. The `spec/` folder is only for tests and can be left out.
-5. Unplug the cable and restart KOReader.
-6. In KOReader: top menu, tools (the wrench icon), `Claude Dashboard`. If it is missing, check that the plugin is enabled in the plugin manager.
-7. Tap `✕` in the top right corner to leave the dashboard. The circular arrow to its left repaints the whole screen once.
+The Kindle needs a jailbreak with the hotfix that installs FBInk at `/mnt/us/libkh/bin/fbink`.
 
-To avoid black flashes, each update repaints only the widgets that changed.
+1. Build the Kindle app:
+
+   ```bash
+   cd server
+   ./build-kindle.sh
+   ```
+
+   This produces `kindle/dist/claudedash/`.
+2. Connect the Kindle to the PC with a USB cable.
+3. Copy everything in `kindle/dist/claudedash/claudedash/` and `kindle/dist/claudedash/launch.sh` to a `claudedash` folder at the root of the Kindle.
+4. Copy `kindle/dist/claudedash/scriptlets/Claude Dashboard.sh` to `documents/` on the Kindle.
+5. Unplug the cable. `Claude Dashboard` appears in the Kindle library; tap it to start the dashboard.
+6. Tap `✕` in the top right corner to go back to the Kindle home screen. The circular arrow to its left repaints the whole screen once.
+
+The dashboard takes over the screen from the Kindle interface while it runs and gives it back when it exits, even after a crash. It switches Wi-Fi on if it is off, and keeps the Kindle from going to the screensaver. To avoid black flashes, each update repaints only the widgets that changed.
+
+If the Kindle cannot hear the PC's announcements (some routers block broadcasts), create `claudedash/config.json` on the Kindle containing `{"host": "IP of your PC", "port": 8377}`.
 
 Keep the Kindle on a charger when it is used as a dashboard: Wi-Fi and an always-on screen use far more battery than reading.
 
 ## 3. Checklist on the Kindle
 
-1. `Claude Dashboard` is in the KOReader menu and opens full screen in portrait.
-2. The top right corner shows the battery, refresh and exit buttons, outside any panel.
-3. The clock, Claude usage and music widgets sit where the Layout page shows them, each on its own panel.
-4. `Claude · weekly limits` has the rows `All models` and `Fable only`, matching the tray tooltip on the PC.
-5. The music widget shows the title, artist, application and cover art of what is playing on the PC.
-6. Every button works: previous, play or pause, next, volume down and up. Play or pause and the volume number change at once.
-7. On the PC, move a widget, change a size and hide one: the Kindle follows within a few seconds.
-8. Wait 2 minutes: the clock advances on the minute without heavy ghosting.
-9. Wait past the Kindle's sleep timeout: the screen does not switch to the screensaver.
-10. Quit `claudedash.exe`: within about 10 seconds the corner says `PC offline`, the clock and countdowns keep running, and the interface does not stutter. Start it again: the mark goes away by itself.
-11. Close and reopen the dashboard with the PC off: the last screen comes back.
-12. Tap `✕`: the dashboard closes and the Kindle goes back to sleeping normally.
-13. If KOReader reports an error, look at `koreader/crash.log`.
+1. `Claude Dashboard` is in the library with its cover and opens full screen in portrait.
+2. With no PC found yet, the screen says it is looking for Claude Dashboard on the network, then shows the widgets once the PC app runs.
+3. The top right corner shows the battery, refresh and exit buttons, outside any panel.
+4. The clock, Claude usage and music widgets sit where the Layout page shows them, each on its own panel.
+5. The music widget shows the title, artist, application and cover art of what is playing on the PC, and every button works.
+6. On the PC, move a widget, change a size and hide one: the Kindle follows within a few seconds.
+7. Wait 2 minutes: the clock advances on the minute without heavy ghosting.
+8. Quit `claudedash.exe`: within about 10 seconds the corner says `PC offline` and the clock keeps running. Start it again: the mark goes away by itself.
+9. Restart the dashboard with the PC off: the last screen comes back.
+10. Press the power button to sleep and again to wake: the dashboard is back. A tap while it sleeps only wakes it.
+11. Tap `✕`: the Kindle home screen comes back.
 
-## When the dashboard seems frozen
+## When something goes wrong
 
-The cause found so far (2026-11-11): the Kindle was not frozen, it had **gone to sleep**. KOReader's AutoSuspend plugin suspends the device 15 minutes after the last touch. Because the dashboard blocks the Kindle screensaver, the device slept with the last frame still on screen and the touch panel off, which looks exactly like a freeze. In that state the power button did not wake it either: KOReader wakes only when the Kindle reports leaving the screensaver, and with the screensaver blocked that signal never came. The only way out was holding the power button for about 40 seconds to reboot. The plugin now pauses AutoSuspend while the dashboard is open, and if the device still goes to sleep for another reason it releases the screensaver block so the sleep and wake cycle runs normally.
-
-How to recognise it in `claudedash.log` next to the exe: lines `back after ... of silence` with gaps that keep growing (a few minutes, 16 minutes, 30 minutes, an hour), each followed by only one or two requests. That is a sleeping device waking up now and then.
-
-Every network call of the plugin runs in a subprocess with a deadline (`cd_net.lua`, `cd_async.lua`), so a PC that is off or a dropped network costs one update and does not block the touch screen. If a freeze still happens, there are two places to look:
-
-- `claudedash.log` on the PC: the line `client <IP> back after ... of silence, last seen HH:MM:SS with ...` tells when the Kindle stopped calling and what its last request was.
-- `koreader/crash.log` on the Kindle: the line `claudedash: UI thread was blocked for about N seconds` is written when a periodic step runs 3 seconds or more late.
+- `claudedash/claudedash.log` on the Kindle records what the app did: the PC it found, failed requests and slow commands.
+- `claudedash.log` next to the exe on the PC: the line `client <IP> back after ... of silence, last seen HH:MM:SS with ...` tells when the Kindle stopped calling and what its last request was.
+- If the screen says the PC was found but cannot be reached, the firewall rule above is missing.
 
 ## Development
 
 ```bash
 cd server
-go test -race -count=1 ./...
+go test -race ./...
 ```
 
-`-count=1` is required: Go cannot see that `.lua` files outside the module changed and would return cached results.
-
-This also runs the plugin's Lua specs (`claudedash.koplugin/spec/`) in an embedded Lua VM and checks the syntax of every plugin `.lua` file. The plugin's interface can only be tried on a real device.
+The Kindle app's drawing, touch and network code is tested on the PC; taking over the screen, the light and Wi-Fi can only be tried on a real device.

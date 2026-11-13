@@ -119,7 +119,7 @@ func main() {
 	})
 
 	lan.watch = httpd.WatchClients(
-		httpd.WithScreens(httpd.NewHandler(service.Latest, mediaService, backdrop, app), app, backdrop, app),
+		httpd.WithScreens(httpd.NewHandler(mediaService, backdrop, app), app, backdrop, app),
 		time.Now,
 		func(format string, args ...any) { lg.Add(applog.Kindle, format, args...) },
 	)

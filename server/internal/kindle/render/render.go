@@ -1,5 +1,5 @@
 // Package render draws the dashboard into an 8-bit gray image of the whole
-// Kindle screen, the way claudedash.koplugin/cd_view.lua drew it in KOReader.
+// Kindle screen.
 package render
 
 import (

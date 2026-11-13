@@ -1,7 +1,6 @@
 // Package app is the Kindle dashboard's event loop: it finds the PC, polls it,
-// draws what changed, and answers taps, like claudedash.koplugin/main.lua did
-// inside KOReader. All state lives in the loop goroutine; network calls run
-// beside it and post their results back.
+// draws what changed, and answers taps. All state lives in the loop goroutine;
+// network calls run beside it and post their results back.
 package app
 
 import (

@@ -5,17 +5,14 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"claudedash/internal/config"
 	"claudedash/internal/media"
-	"claudedash/internal/usage"
 )
 
+// MediaSource supplies the cover picture the media widget shows.
 type MediaSource interface {
-	Snapshot() media.State
 	Art() (pngData []byte, hash string, ok bool)
-	Do(cmd string) (media.State, error)
 }
 
 type BackgroundSource interface {
@@ -35,30 +32,9 @@ type DisplaySource interface {
 	RefreshToken() string
 }
 
-// The background and settings hashes ride along with the media state because
-// that is the reply the Kindle already polls every few seconds.
-type mediaReply struct {
-	media.State
-	Background string `json:"background,omitempty"`
-	Settings   string `json:"settings,omitempty"`
-	Refresh    string `json:"refresh,omitempty"`
-}
-
-// NewHandler serves usage, media, the backdrop picture and display settings to
-// the LAN. Any nil source leaves the remaining endpoints working.
-func NewHandler(latest func() usage.Snapshot, m MediaSource, bg BackgroundSource, d DisplaySource) http.Handler {
-	reply := func(state media.State) mediaReply {
-		out := mediaReply{State: state}
-		if bg != nil {
-			out.Background = bg.Hash()
-		}
-		if d != nil {
-			out.Settings = d.Display().Hash()
-			out.Refresh = d.RefreshToken()
-		}
-		return out
-	}
-
+// NewHandler serves the cover picture, the backdrop picture and display
+// settings to the LAN. Any nil source leaves the remaining endpoints working.
+func NewHandler(m MediaSource, bg BackgroundSource, d DisplaySource) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/background-source.png", func(w http.ResponseWriter, r *http.Request) {
 		if !allow(w, r, http.MethodGet) {
@@ -111,22 +87,6 @@ func NewHandler(latest func() usage.Snapshot, m MediaSource, bg BackgroundSource
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Write(pngData)
 	})
-	mux.HandleFunc("/usage.json", func(w http.ResponseWriter, r *http.Request) {
-		if !allow(w, r, http.MethodGet) {
-			return
-		}
-		writeJSON(w, latest())
-	})
-	mux.HandleFunc("/media.json", func(w http.ResponseWriter, r *http.Request) {
-		if !allow(w, r, http.MethodGet) {
-			return
-		}
-		if m == nil {
-			writeJSON(w, reply(media.State{}))
-			return
-		}
-		writeJSON(w, reply(m.Snapshot()))
-	})
 	if m == nil {
 		return mux
 	}
@@ -143,22 +103,6 @@ func NewHandler(latest func() usage.Snapshot, m MediaSource, bg BackgroundSource
 		w.Header().Set("ETag", `"`+hash+`"`)
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Write(pngData)
-	})
-	mux.HandleFunc("/media/", func(w http.ResponseWriter, r *http.Request) {
-		cmd := strings.TrimPrefix(r.URL.Path, "/media/")
-		if cmd == "" || strings.Contains(cmd, "/") {
-			http.NotFound(w, r)
-			return
-		}
-		if !allow(w, r, http.MethodPost) {
-			return
-		}
-		state, err := m.Do(cmd)
-		if err != nil {
-			http.Error(w, "command failed", commandStatus(err))
-			return
-		}
-		writeJSON(w, reply(state))
 	})
 	return mux
 }

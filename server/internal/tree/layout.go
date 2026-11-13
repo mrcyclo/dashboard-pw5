@@ -1,7 +1,19 @@
-// Package tree lays out a widget's component tree exactly like
-// claudedash.koplugin/cd_tree.lua and server/frontend/src/lib/tree.js; all
-// three are checked against server/internal/widget/testdata/tree_fixtures.json.
-// The rules are written out at the top of cd_tree.lua.
+// Package tree lays out a widget's component tree, as sent by the PC in
+// /screen.json, for the Kindle app. The window's preview does the same in
+// server/frontend/src/lib/tree.js, and both are checked against
+// server/internal/widget/testdata/tree_fixtures.json.
+//
+// Rules:
+//  1. col stacks its children; they get its width when align is "stretch"
+//     (default) or are bars and rules, else their own width aligned by align.
+//     Leftover height is shared by "grow" weight.
+//  2. row places children left to right. A growing child starts at width 0 and
+//     takes its share of the leftover width; others keep their own width.
+//     Children of a row are aligned vertically by align ("center" default),
+//     except cols and rules, which take the row's full height.
+//  3. Unknown kinds are skipped. Every box is clipped to the root box, and a
+//     text line too short to show whole is left out.
+//  4. x and y are floored, then w and h.
 package tree
 
 import (

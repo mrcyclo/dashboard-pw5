@@ -10,7 +10,6 @@ import (
 
 	"claudedash/internal/config"
 	"claudedash/internal/media"
-	"claudedash/internal/usage"
 	"claudedash/internal/widget"
 )
 
@@ -32,7 +31,7 @@ func (f *fakeScreens) Act(name string) error {
 }
 
 func screenServer(f *fakeScreens) http.Handler {
-	base := NewHandler(func() usage.Snapshot { return usage.Snapshot{} }, nil, nil, &fakeDisplay{display: config.Default().Display, refresh: "r1"})
+	base := NewHandler(nil, nil, &fakeDisplay{display: config.Default().Display, refresh: "r1"})
 	return WithScreens(base, f, nil, &fakeDisplay{display: config.Default().Display, refresh: "r1"})
 }
 
@@ -117,9 +116,9 @@ func TestIconUnknown404(t *testing.T) {
 	}
 }
 
-func TestOldEndpointsStillServe(t *testing.T) {
+func TestBaseEndpointsStillServe(t *testing.T) {
 	h := screenServer(&fakeScreens{})
-	for _, path := range []string{"/media.json", "/usage.json", "/kindle.json"} {
+	for _, path := range []string{"/kindle.json"} {
 		if rec := do(h, http.MethodGet, path); rec.Code != 200 {
 			t.Errorf("%s: code %d", path, rec.Code)
 		}

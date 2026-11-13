@@ -1,7 +1,7 @@
-// Lays out a widget's component tree exactly like claudedash.koplugin/cd_tree.lua,
+// Lays out a widget's component tree exactly like server/internal/tree/layout.go,
 // so the window's preview places everything where the Kindle does. Both are
 // checked against server/internal/widget/testdata/tree_fixtures.json; the rules
-// are written out at the top of cd_tree.lua.
+// are written out at the top of layout.go.
 import { countdownText, dateText, timeText } from './format.js'
 
 const KNOWN = new Set(['col', 'row', 'space', 'rule', 'text', 'clock', 'countdown', 'bar', 'icon', 'image', 'button'])

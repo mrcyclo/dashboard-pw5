@@ -274,7 +274,7 @@ func TestIconsEmbedded(t *testing.T) {
 	}
 }
 
-// height is a widget tree's natural height under the layout rules of cd_tree.lua.
+// height is a widget tree's natural height under the layout rules of internal/tree.
 func height(n Node) float64 {
 	num := func(key string, fallback float64) float64 {
 		if v, ok := n[key].(int); ok {

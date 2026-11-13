@@ -1,5 +1,4 @@
-// Package patch shows the likely result of a tap before the PC answers, like
-// claudedash.koplugin/cd_patch.lua. A button carries ops on nodes of its own
+// Package patch shows the likely result of a tap before the PC answers. A button carries ops on nodes of its own
 // widget; predicted values are held until the PC reports the same values, or Hold.
 package patch
 

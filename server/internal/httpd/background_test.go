@@ -1,13 +1,9 @@
 package httpd
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"claudedash/internal/media"
-	"claudedash/internal/usage"
 )
 
 type fakeBackground struct {
@@ -52,7 +48,7 @@ func TestBackgroundSource(t *testing.T) {
 }
 
 func callWith(m MediaSource, bg BackgroundSource, method, path string) *httptest.ResponseRecorder {
-	h := NewHandler(func() usage.Snapshot { return usage.Snapshot{} }, m, bg, nil)
+	h := NewHandler(m, bg, nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(method, path, nil))
 	return rec
@@ -99,39 +95,5 @@ func TestBackgroundBadSize(t *testing.T) {
 func TestBackgroundNeedsGet(t *testing.T) {
 	if rec := callWith(nil, &fakeBackground{hash: "x"}, http.MethodPost, "/background.png?w=1&h=1"); rec.Code != 405 {
 		t.Fatalf("code %d", rec.Code)
-	}
-}
-
-func TestMediaJSONCarriesBackgroundHash(t *testing.T) {
-	f := &fakeMedia{state: media.State{Active: true, Title: "Song"}}
-	rec := callWith(f, &fakeBackground{hash: "abc123abc123"}, http.MethodGet, "/media.json")
-	var got map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
-		t.Fatal(err)
-	}
-	if got["background"] != "abc123abc123" || got["title"] != "Song" || got["active"] != true {
-		t.Fatalf("got %v", got)
-	}
-}
-
-func TestMediaJSONWithoutBackgroundOmitsField(t *testing.T) {
-	f := &fakeMedia{state: media.State{Active: true}}
-	for _, bg := range []BackgroundSource{nil, &fakeBackground{}} {
-		rec := callWith(f, bg, http.MethodGet, "/media.json")
-		var got map[string]any
-		json.Unmarshal(rec.Body.Bytes(), &got)
-		if _, present := got["background"]; present {
-			t.Fatalf("got %v", got)
-		}
-	}
-}
-
-func TestCommandReplyCarriesBackgroundHashToo(t *testing.T) {
-	f := &fakeMedia{afterDo: media.State{Active: true}}
-	rec := callWith(f, &fakeBackground{hash: "abc123abc123"}, http.MethodPost, "/media/next")
-	var got map[string]any
-	json.Unmarshal(rec.Body.Bytes(), &got)
-	if got["background"] != "abc123abc123" {
-		t.Fatalf("a command reply without the hash would make the Kindle drop its background: %v", got)
 	}
 }

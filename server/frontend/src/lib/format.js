@@ -1,5 +1,5 @@
 // Text and numbers shown in the window. The usage wording mirrors
-// claudedash.koplugin/cd_format.lua so the window and the Kindle say the same thing.
+// server/internal/tree/text.go so the window and the Kindle say the same thing.
 
 const WEEKDAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
