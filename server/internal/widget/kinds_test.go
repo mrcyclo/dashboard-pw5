@@ -1,11 +1,13 @@
 package widget
 
 import (
+	"math"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"claudedash/internal/grid"
 	"claudedash/internal/media"
 	"claudedash/internal/usage"
 )
@@ -267,5 +269,73 @@ func TestIconsEmbedded(t *testing.T) {
 	}
 	if _, ok := IconSVG("../catalog"); ok {
 		t.Error("names must not escape the icon folder")
+	}
+}
+
+// height is a widget tree's natural height under the layout rules of cd_tree.lua.
+func height(n Node) float64 {
+	num := func(key string, fallback float64) float64 {
+		if v, ok := n[key].(int); ok {
+			return float64(v)
+		}
+		return fallback
+	}
+	switch n["kind"] {
+	case "text", "clock", "countdown":
+		return math.Ceil(num("size", 20) * 1.3)
+	case "icon", "button":
+		return num("size", 0)
+	case "image":
+		return num("h", 0)
+	case "bar":
+		return num("height", 8)
+	case "rule":
+		return num("thickness", 2)
+	case "space":
+		return num("size", 0)
+	}
+	children, _ := n["children"].([]Node)
+	total := 0.0
+	for _, child := range children {
+		h := height(child)
+		if n["kind"] == "row" {
+			total = math.Max(total, h)
+		} else {
+			total += h
+		}
+	}
+	if n["kind"] == "col" && len(children) > 1 {
+		total += float64(len(children)-1) * num("gap", 0)
+	}
+	return total
+}
+
+// The longest content a Claude widget gets: four limits with different resets, stale.
+func worstSnapshot() usage.Snapshot {
+	reset := testNow.Unix() + 3600
+	return usage.Snapshot{
+		FetchedAt: testNow.Unix() - 600,
+		Stale:     true,
+		FiveHour:  &usage.Window{UsedPercent: 100, ResetsAt: reset},
+		SevenDay:  &usage.Window{UsedPercent: 100, ResetsAt: reset + 86400},
+		Models: []usage.ModelWindow{
+			{Name: "Sonnet", UsedPercent: 100, ResetsAt: reset + 2*86400},
+			{Name: "Opus", UsedPercent: 100},
+		},
+	}
+}
+
+func TestEverySizeFitsItsBox(t *testing.T) {
+	vol := 100
+	playing := media.State{Active: true, Title: "Song", Artist: "Band", App: "Chrome", Playing: true, Art: "a", Volume: &vol}
+	data := Data{Now: testNow, Usage: worstSnapshot(), Media: playing}
+	for _, k := range Default(nil).All() {
+		for _, size := range k.Sizes() {
+			s, _ := grid.ParseSize(size)
+			inner := float64(grid.CellRect(0, 0, s).H - 48)
+			if got := height(k.Build(size, data)); got > inner {
+				t.Errorf("%s %s: content is %.0f px tall, the box has %.0f", k.Name(), size, got, inner)
+			}
+		}
 	}
 }

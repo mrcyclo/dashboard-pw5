@@ -102,15 +102,20 @@ func limitBar(l limit) Node {
 	return n
 }
 
-func limitCell(l limit, ownCountdown bool) Node {
-	cell := Col(4,
-		Row(8, Text(l.label, claudeTitleSize).Bold().Grow(1), usedText(l)),
-		limitBar(l),
-	)
-	if ownCountdown && l.resetsAt > 0 {
-		cell["children"] = append(cell["children"].([]Node), Countdown(l.resetsAt, claudeNoteSize).Dim())
+// limitCell is one limit: label, "N% used" and a bar. A countdown of its own
+// shares the label's line in the wide size and gets a line below in the tall one.
+func limitCell(l limit, ownCountdown, tall bool) Node {
+	countdown := ownCountdown && l.resetsAt > 0
+	line := []Node{Text(l.label, claudeTitleSize).Bold().Grow(1)}
+	if countdown && !tall {
+		line = append(line, Countdown(l.resetsAt, claudeNoteSize).Dim())
 	}
-	return cell
+	line = append(line, usedText(l))
+	cell := []Node{Row(8, line...), limitBar(l)}
+	if countdown && tall {
+		cell = append(cell, Countdown(l.resetsAt, claudeNoteSize).Dim())
+	}
+	return Col(4, cell...)
 }
 
 func (claudeKind) Build(size string, d Data) Node {
@@ -125,24 +130,31 @@ func (claudeKind) Build(size string, d Data) Node {
 	}
 
 	tall := size == "3x3"
-	var blocks []Node
-	for _, section := range list {
-		shared := sharedReset(section.limits)
-		title := Text(section.title, claudeTitleSize).Bold().Grow(1)
-		header := Row(8, title)
-		if tall {
-			header = Col(2, Text(section.title, claudeTitleSize).Bold())
-		}
-		if shared > 0 {
-			header["children"] = append(header["children"].([]Node), Countdown(shared, claudeNoteSize).Dim())
-		}
-		block := []Node{header, Rule(), Space(4)}
-		block = append(block, limitRows(section.limits, shared == 0, tall)...)
-		blocks = append(blocks, Col(6, block...))
-	}
+	// Old numbers are marked in the first header, so the mark costs no height.
+	var stale Node
 	if d.Usage.Stale && d.Usage.FetchedAt > 0 {
 		at := time.Unix(d.Usage.FetchedAt, 0).In(d.Now.Location()).Format("15:04")
-		blocks = append(blocks, Text("Updated "+at+" (stale)", claudeNoteSize).Dim())
+		stale = Text("Updated "+at+" (stale)", claudeNoteSize).Dim()
+	}
+	var blocks []Node
+	for i, section := range list {
+		shared := sharedReset(section.limits)
+		var notes []Node
+		if i == 0 && stale != nil {
+			notes = append(notes, stale)
+		}
+		if shared > 0 {
+			notes = append(notes, Countdown(shared, claudeNoteSize).Dim())
+		}
+		header := Row(12, append([]Node{Text(section.title, claudeTitleSize).Bold().Grow(1)}, notes...)...)
+		if tall {
+			header = Col(2, Text(section.title, claudeTitleSize).Bold())
+			if len(notes) > 0 {
+				header["children"] = append(header["children"].([]Node), Row(12, notes...).Align("start"))
+			}
+		}
+		block := append([]Node{header, Rule()}, limitRows(section.limits, shared == 0, tall)...)
+		blocks = append(blocks, Col(6, block...))
 	}
 	return Col(12, blocks...)
 }
@@ -152,13 +164,13 @@ func limitRows(limits []limit, ownCountdown, tall bool) []Node {
 	var rows []Node
 	for i := 0; i < len(limits); {
 		if tall || i+1 == len(limits) {
-			rows = append(rows, limitCell(limits[i], ownCountdown))
+			rows = append(rows, limitCell(limits[i], ownCountdown, tall))
 			i++
 			continue
 		}
 		rows = append(rows, Row(14,
-			limitCell(limits[i], ownCountdown).Grow(1),
-			limitCell(limits[i+1], ownCountdown).Grow(1),
+			limitCell(limits[i], ownCountdown, tall).Grow(1),
+			limitCell(limits[i+1], ownCountdown, tall).Grow(1),
 		).Align("start"))
 		i += 2
 	}
