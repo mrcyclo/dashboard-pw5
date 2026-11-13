@@ -159,10 +159,10 @@
       {#if mode === 'layout'}
         <svg class="pointer-events-none absolute inset-0" width={SCREEN.width} height={SCREEN.height}>
           {#each lines.xs as x (x)}
-            <line x1={x} y1={lines.top} x2={x} y2={lines.bottom} stroke="rgba(0,0,0,0.22)" stroke-width="3" />
+            <line x1={x} y1={lines.top} x2={x} y2={lines.bottom} stroke="rgba(0,0,0,0.1)" stroke-width="2" />
           {/each}
           {#each lines.ys as y (y)}
-            <line x1={lines.left} y1={y} x2={lines.right} y2={y} stroke="rgba(0,0,0,0.22)" stroke-width="3" />
+            <line x1={lines.left} y1={y} x2={lines.right} y2={y} stroke="rgba(0,0,0,0.1)" stroke-width="2" />
           {/each}
         </svg>
       {/if}
