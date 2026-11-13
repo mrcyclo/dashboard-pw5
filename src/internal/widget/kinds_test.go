@@ -330,11 +330,17 @@ func worstSnapshot() usage.Snapshot {
 func TestEverySizeFitsItsBox(t *testing.T) {
 	vol := 100
 	playing := media.State{Active: true, Title: "Song", Artist: "Band", App: "Chrome", Playing: true, Art: "a", Volume: &vol}
-	data := Data{Now: testNow, Usage: worstSnapshot(), Media: playing, Apps: tiles(20)}
+	apps := tiles(20)
+	apps[0].Name = "Adobe Photoshop Lightroom Classic 2026"
+	data := Data{Now: testNow, Usage: worstSnapshot(), Media: playing, Apps: apps}
 	for _, k := range Default(nil).All() {
 		for _, size := range k.Sizes() {
 			s, _ := grid.ParseSize(size)
 			inner := float64(grid.CellRect(0, 0, s).H - 48)
+			// The user chose two name lines under full-size app icons; in one row the Kindle drops the second.
+			if k.Name() == "apps" && s.Rows == 1 {
+				continue
+			}
 			if got := height(k.Build(size, data)); got > inner {
 				t.Errorf("%s %s: content is %.0f px tall, the box has %.0f", k.Name(), size, got, inner)
 			}

@@ -260,10 +260,25 @@ func (p painter) image(r image.Rectangle, key string) {
 		p.fill(r.Inset(2), color.Gray{Y: 204})
 		return
 	}
-	scaled := image.NewGray(image.Rect(0, 0, r.Dx(), r.Dy()))
+	scaled := image.NewNRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
 	xdraw.ApproxBiLinear.Scale(scaled, scaled.Bounds(), img, img.Bounds(), xdraw.Src, nil)
-	dither(scaled, r.Min)
-	xdraw.Draw(p.dst, r, scaled, image.Point{}, xdraw.Src)
+	// A see-through picture, such as an app icon, is mixed with what is already drawn below it.
+	for y := 0; y < r.Dy(); y++ {
+		for x := 0; x < r.Dx(); x++ {
+			c := scaled.NRGBAAt(x, y)
+			if c.A == 0 {
+				continue
+			}
+			px, py := r.Min.X+x, r.Min.Y+y
+			if !image.Pt(px, py).In(p.dst.Bounds()) {
+				continue
+			}
+			v := color.GrayModel.Convert(color.NRGBA{c.R, c.G, c.B, 255}).(color.Gray).Y
+			under := p.dst.GrayAt(px, py).Y
+			mixed := (int(v)*int(c.A) + int(under)*(255-int(c.A)) + 127) / 255
+			p.dst.SetGray(px, py, color.Gray{Y: ditherValue(uint8(mixed), px, py)})
+		}
+	}
 }
 
 // button is a white disc with a ring and the icon, or the icon alone when plain.

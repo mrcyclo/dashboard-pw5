@@ -69,13 +69,18 @@ func dither(img *image.Gray, origin image.Point) {
 	for y := b.Min.Y; y < b.Max.Y; y++ {
 		row := img.Pix[(y-b.Min.Y)*img.Stride:]
 		for x := 0; x < b.Dx(); x++ {
-			// Spread 0..255 over 15 steps of 64 sub-levels each.
-			t := (int(row[x])*(15*64+1) + 127) / 255
-			level := t / 64
-			if t%64 >= threshold8x8[(origin.X+x)&7+8*((origin.Y+y)&7)] {
-				level++
-			}
-			row[x] = uint8(min(level*grayStep, 255))
+			row[x] = ditherValue(row[x], origin.X+x, origin.Y+y)
 		}
 	}
+}
+
+// ditherValue is the panel gray a pixel of value v at screen (x, y) becomes.
+func ditherValue(v uint8, x, y int) uint8 {
+	// Spread 0..255 over 15 steps of 64 sub-levels each.
+	t := (int(v)*(15*64+1) + 127) / 255
+	level := t / 64
+	if t%64 >= threshold8x8[x&7+8*(y&7)] {
+		level++
+	}
+	return uint8(min(level*grayStep, 255))
 }

@@ -22,6 +22,7 @@ import (
 
 	"claudedash/internal/discovery"
 	"claudedash/internal/kindle/render"
+	"claudedash/internal/kindle/screen"
 	"claudedash/internal/tree"
 )
 
@@ -606,5 +607,14 @@ func TestReconnectingClearsTheOfflineMark(t *testing.T) {
 	}
 	if got := lastShown(d); !marked.In(got) {
 		t.Fatalf("repainted %v, but PC offline covered %v", got, marked)
+	}
+}
+
+func TestAButtonPictureCountsAsUsed(t *testing.T) {
+	tree := map[string]any{"kind": "col", "children": []any{
+		map[string]any{"kind": "button", "src": "/apps/a1.png?v=h", "size": 72.0, "action": "apps.open.a1"},
+	}}
+	if !uses(tree, screen.Asset{Key: "image:/apps/a1.png?v=h", Path: "/apps/a1.png?v=h"}) {
+		t.Fatal("a new app icon must redraw its widget once it arrives")
 	}
 }

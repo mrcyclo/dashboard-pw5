@@ -627,7 +627,7 @@ func uses(node any, a screen.Asset) bool {
 	if a.Icon != "" && (n["name"] == a.Icon || n["icon"] == a.Icon) {
 		return true
 	}
-	if a.Icon == "" && n["kind"] == "image" && n["src"] == a.Path {
+	if a.Icon == "" && (n["kind"] == "image" || n["kind"] == "button") && n["src"] == a.Path {
 		return true
 	}
 	children, _ := n["children"].([]any)

@@ -125,7 +125,8 @@ func withCOM(fn func() error) error {
 	return fn()
 }
 
-// Icon draws the program's or shortcut's icon as a size x size gray PNG on white.
+// Icon draws the program's or shortcut's icon as a size x size gray PNG that
+// keeps its transparency, so the Kindle shows its panel around the shape.
 func Icon(path string, size int) ([]byte, error) {
 	var img *image.NRGBA
 	err := withCOM(func() error {
@@ -140,13 +141,14 @@ func Icon(path string, size int) ([]byte, error) {
 	if box.Empty() {
 		return nil, errNoIcon
 	}
-	canvas := image.NewRGBA(image.Rect(0, 0, size, size))
-	xdraw.Draw(canvas, canvas.Bounds(), image.NewUniform(color.White), image.Point{}, xdraw.Src)
-	xdraw.CatmullRom.Scale(canvas, fit(box, size), img, box, xdraw.Over, nil)
-	gray := image.NewGray(canvas.Bounds())
-	xdraw.Draw(gray, gray.Bounds(), canvas, image.Point{}, xdraw.Src)
+	canvas := image.NewNRGBA(image.Rect(0, 0, size, size))
+	xdraw.CatmullRom.Scale(canvas, fit(box, size), img, box, xdraw.Src, nil)
+	for i := 0; i < len(canvas.Pix); i += 4 {
+		y := color.GrayModel.Convert(color.RGBA{canvas.Pix[i], canvas.Pix[i+1], canvas.Pix[i+2], 255}).(color.Gray).Y
+		canvas.Pix[i], canvas.Pix[i+1], canvas.Pix[i+2] = y, y, y
+	}
 	var out bytes.Buffer
-	if err := png.Encode(&out, gray); err != nil {
+	if err := png.Encode(&out, canvas); err != nil {
 		return nil, err
 	}
 	return out.Bytes(), nil

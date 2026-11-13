@@ -2,6 +2,7 @@ package render
 
 import (
 	"image"
+	"image/color"
 	"os"
 	"testing"
 	"time"
@@ -310,5 +311,36 @@ func TestButtonWithAPictureDrawsIt(t *testing.T) {
 	r := buttons[0].Rect
 	if got := blockMean(img, r.Inset(10)); got > 20 {
 		t.Fatalf("the picture fills the button: mean %v", got)
+	}
+}
+
+// An app icon is see-through outside its shape, so the panel behind it shows.
+func TestSeeThroughPictureKeepsWhatIsBehind(t *testing.T) {
+	icon := image.NewNRGBA(image.Rect(0, 0, 64, 64))
+	for y := 24; y < 40; y++ {
+		for x := 24; x < 40; x++ {
+			icon.SetNRGBA(x, y, color.NRGBA{A: 255})
+		}
+	}
+	img := canvas()
+	w := widget("apps", image.Rect(48, 48, 610, 228), tree.Node{"kind": "row", "children": []any{
+		map[string]any{"kind": "button", "src": "/apps/a1.png", "size": 88.0, "action": "apps.open.a1"},
+	}})
+	w.Lighten = 0
+	st := state(w)
+	st.Background = image.NewGray(image.Rect(0, 0, Width, Height))
+	_, buttons, _ := Draw(img, st, testFonts(t), pictureAssets{icon})
+	r := buttons[0].Rect
+	white := canvas()
+	st.Background = image.NewGray(image.Rect(0, 0, Width, Height))
+	for i := range st.Background.Pix {
+		st.Background.Pix[i] = 255
+	}
+	Draw(white, st, testFonts(t), pictureAssets{icon})
+	if img.GrayAt(r.Min.X+2, r.Min.Y+2).Y != 0 || white.GrayAt(r.Min.X+2, r.Min.Y+2).Y != 255 {
+		t.Fatalf("the corner of the icon shows the background: %d on black, %d on white", img.GrayAt(r.Min.X+2, r.Min.Y+2).Y, white.GrayAt(r.Min.X+2, r.Min.Y+2).Y)
+	}
+	if white.GrayAt(r.Min.X+r.Dx()/2, r.Min.Y+r.Dy()/2).Y != 0 {
+		t.Fatal("the icon itself is drawn")
 	}
 }

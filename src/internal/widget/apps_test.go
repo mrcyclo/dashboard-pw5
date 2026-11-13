@@ -43,3 +43,25 @@ func TestAppsAreInTheCatalog(t *testing.T) {
 		t.Fatal("missing")
 	}
 }
+
+func TestAppNamesWrapToTwoLinesWhenThereIsRoom(t *testing.T) {
+	tile := func(name string) []string {
+		return texts(appsKind{}.Build("6x2", Data{Apps: []AppTile{{ID: "a", Name: name}}}))
+	}
+	if got := tile("Notepad"); len(got) != 1 {
+		t.Fatalf("a short name is one line: %q", got)
+	}
+	if got := tile("Adobe Photoshop 2026"); len(got) != 2 || got[0] != "Adobe" || got[1] != "Photoshop 2026" {
+		t.Fatalf("%q", got)
+	}
+	if got := tile("Microsoft Visual Studio Code Insiders Edition"); len(got) != 2 {
+		t.Fatalf("never more than two lines; the Kindle cuts the second: %q", got)
+	}
+}
+
+func TestOneRowAppsAlsoGetTwoLines(t *testing.T) {
+	tree := appsKind{}.Build("6x1", Data{Apps: []AppTile{{ID: "a", Name: "Adobe Photoshop 2026"}}})
+	if lines := texts(tree); len(lines) != 2 {
+		t.Fatalf("%q", lines)
+	}
+}

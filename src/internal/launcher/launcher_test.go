@@ -26,18 +26,24 @@ func TestIconIsASquareGrayPicture(t *testing.T) {
 	if img.Bounds() != image.Rect(0, 0, 96, 96) {
 		t.Fatalf("bounds %v", img.Bounds())
 	}
-	gray, ok := img.(*image.Gray)
+	pic, ok := img.(*image.NRGBA)
 	if !ok {
-		t.Fatalf("%T, want a gray picture for the Kindle", img)
+		t.Fatalf("%T, want gray with transparency", img)
 	}
-	dark := 0
-	for _, v := range gray.Pix {
-		if v < 200 {
-			dark++
+	solid, clear := 0, 0
+	for i := 0; i < len(pic.Pix); i += 4 {
+		if pic.Pix[i] != pic.Pix[i+1] || pic.Pix[i] != pic.Pix[i+2] {
+			t.Fatal("the Kindle shows grays only")
+		}
+		switch pic.Pix[i+3] {
+		case 255:
+			solid++
+		case 0:
+			clear++
 		}
 	}
-	if dark < 96*96/20 {
-		t.Fatalf("only %d dark pixels: the icon is missing", dark)
+	if solid < 96*96/20 || clear == 0 {
+		t.Fatalf("%d solid and %d see-through pixels: the shape and its transparent margin are kept", solid, clear)
 	}
 }
 
