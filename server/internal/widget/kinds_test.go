@@ -424,3 +424,21 @@ func TestMediaSquareKeepsEveryControl(t *testing.T) {
 		t.Fatalf("all five controls: %v", actions)
 	}
 }
+
+// The tall size uses the same header as the wide one.
+func TestClaudeTallHeaderMatchesWide(t *testing.T) {
+	reset := testNow.Unix() + 3600
+	snap := usage.Snapshot{
+		SevenDay: &usage.Window{UsedPercent: 77, ResetsAt: reset},
+		Models:   []usage.ModelWindow{{Name: "Fable", UsedPercent: 82, ResetsAt: reset + 1}},
+	}
+	tree := claudeKind{}.Build("3x2", Data{Now: testNow, Usage: snap})
+	got := texts(tree)
+	if len(got) == 0 || got[0] != "Claude · weekly limits" {
+		t.Fatalf("got %q", got)
+	}
+	countdowns := byKind(tree, "countdown")
+	if len(countdowns) != 1 || countdowns[0]["to"] != reset {
+		t.Fatalf("one shared countdown in the header, none per row: %v", countdowns)
+	}
+}

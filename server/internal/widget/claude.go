@@ -109,10 +109,11 @@ func wideCell(l limit, ownCountdown bool, size int) Node {
 	return Col(4, Row(8, line...), limitBar(l)).Grow(1)
 }
 
-// tallRow is a line of the 3x2 size: label, countdown and "N% used", then the bar.
-func tallRow(l limit) Node {
+// tallRow is a line of the 3x2 size: label, its own countdown when the limits
+// do not reset together, and "N% used", then the bar.
+func tallRow(l limit, ownCountdown bool) Node {
 	line := []Node{Text(l.label, claudeCellSize).Bold().Grow(1)}
-	if c, ok := countdown(l); ok {
+	if c, ok := countdown(l); ok && ownCountdown {
 		line = append(line, c)
 	}
 	line = append(line, usedText(l, claudeCellSize))
@@ -139,14 +140,11 @@ func (claudeKind) Build(size string, d Data) Node {
 		return wide(d.Usage, list, stale)
 	}
 
-	header := []Node{Text("Claude", claudeTitleSize).Bold().Grow(1)}
-	if stale != nil {
-		header = append(header, stale)
-	}
+	shared := sharedReset(list)
 	// Equal growing spaces around each limit spread them over the whole height.
-	rows := []Node{Row(12, header...), Space(8), Rule()}
+	rows := []Node{header(d.Usage, shared, stale), Space(8), Rule()}
 	for _, l := range list {
-		rows = append(rows, Space(0).Grow(1), tallRow(l))
+		rows = append(rows, Space(0).Grow(1), tallRow(l, shared == 0))
 	}
 	rows = append(rows, Space(0).Grow(1))
 	return Col(0, rows...)
@@ -155,18 +153,7 @@ func (claudeKind) Build(size string, d Data) Node {
 // wide is the original look: a titled header with the shared reset time on the
 // right, a rule, then the limits side by side.
 func wide(s usage.Snapshot, list []limit, stale Node) Node {
-	title := "Claude · weekly limits"
-	if s.FiveHour != nil {
-		title = "Claude · usage limits"
-	}
-	header := []Node{Text(title, claudeTitleSize).Bold().Grow(1)}
-	if stale != nil {
-		header = append(header, stale)
-	}
 	shared := sharedReset(list)
-	if shared > 0 {
-		header = append(header, Countdown(shared, claudeCellSize))
-	}
 	// Four limits in a row only fit with smaller text.
 	size := claudeTitleSize
 	if len(list) > 2 {
@@ -176,5 +163,22 @@ func wide(s usage.Snapshot, list []limit, stale Node) Node {
 	for _, l := range list {
 		cells = append(cells, wideCell(l, shared == 0, size))
 	}
-	return Col(6, Row(12, header...), Rule(), Row(16, cells...).Align("start"))
+	return Col(6, header(s, shared, stale), Rule(), Row(16, cells...).Align("start"))
+}
+
+// header is the title, the stale mark when the numbers are old, and the reset
+// time every limit shares. The title gives way first when the line is short.
+func header(s usage.Snapshot, shared int64, stale Node) Node {
+	title := "Claude · weekly limits"
+	if s.FiveHour != nil {
+		title = "Claude · usage limits"
+	}
+	line := []Node{Text(title, claudeTitleSize).Bold().Grow(1)}
+	if stale != nil {
+		line = append(line, stale)
+	}
+	if shared > 0 {
+		line = append(line, Countdown(shared, claudeCellSize))
+	}
+	return Row(12, line...)
 }
