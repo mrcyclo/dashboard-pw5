@@ -520,7 +520,9 @@ func toGray(img image.Image) *image.Gray {
 }
 
 func (l *loop) syncAssets() {
-	for _, a := range screen.Assets(l.scr) {
+	assets := screen.Assets(l.scr)
+	l.assets.keepOnly(assets)
+	for _, a := range assets {
 		if !l.assets.wants(a, l.c.Now()) {
 			continue
 		}

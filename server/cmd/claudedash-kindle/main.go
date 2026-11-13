@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -36,7 +37,7 @@ const (
 )
 
 func main() {
-	logf := openLog(filepath.Join(appDir, "claudedash.log"))
+	logf := newLogger(filepath.Join(appDir, "claudedash.log"), logLimit, logKeep)
 	logf("starting")
 	shell := device.Shell{Log: logf}
 
@@ -140,22 +141,50 @@ func manualAddress(path string) string {
 	return net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
 }
 
-// openLog appends to the log, first cutting it to its tail when it grew too big.
-func openLog(path string) func(string, ...any) {
-	if info, err := os.Stat(path); err == nil && info.Size() > logLimit {
-		if f, err := os.Open(path); err == nil {
-			f.Seek(-logKeep, io.SeekEnd)
-			tail, _ := io.ReadAll(f)
-			f.Close()
-			os.WriteFile(path, tail, 0o644)
-		}
-	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-	if err != nil {
-		return func(string, ...any) {}
+// newLogger appends to the log, cutting it to its last keep bytes whenever it
+// grows past limit, at start and while running.
+func newLogger(path string, limit, keep int64) func(string, ...any) {
+	var mu sync.Mutex
+	trim(path, limit, keep)
+	size := int64(0)
+	if info, err := os.Stat(path); err == nil {
+		size = info.Size()
 	}
 	return func(format string, args ...any) {
-		fmt.Fprintf(f, "%s %s\n", time.Now().Format("2006-01-02 15:04:05.000"), fmt.Sprintf(format, args...))
+		mu.Lock()
+		defer mu.Unlock()
+		line := time.Now().Format("2006-01-02 15:04:05.000") + " " + fmt.Sprintf(format, args...) + "\n"
+		if size+int64(len(line)) > limit {
+			trim(path, 0, keep)
+			size = 0
+			if info, err := os.Stat(path); err == nil {
+				size = info.Size()
+			}
+		}
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+		if err != nil {
+			return
+		}
+		f.WriteString(line)
+		// A frozen Kindle is usually hard-reset, which would lose an unsynced tail.
 		f.Sync()
+		f.Close()
+		size += int64(len(line))
 	}
+}
+
+// trim keeps the last keep bytes of the file when it is larger than limit.
+func trim(path string, limit, keep int64) {
+	info, err := os.Stat(path)
+	if err != nil || info.Size() <= limit {
+		return
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	f.Seek(-min(keep, info.Size()), io.SeekEnd)
+	tail, _ := io.ReadAll(f)
+	f.Close()
+	os.WriteFile(path, tail, 0o644)
 }

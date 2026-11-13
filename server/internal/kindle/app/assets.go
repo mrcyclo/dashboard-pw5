@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	xdraw "golang.org/x/image/draw"
+
 	"claudedash/internal/kindle/render"
 	"claudedash/internal/kindle/screen"
 )
@@ -96,13 +98,47 @@ func (s *assetStore) store(a screen.Asset, data []byte) bool {
 	if err != nil {
 		return false
 	}
-	s.images[a.Key] = img
+	s.images[a.Key] = shrink(img)
 	delete(s.failed, a.Key)
 	return true
 }
 
-// removeStale deletes icon files the current icon list no longer names, and
-// pictures no longer on screen are dropped from memory by the caller's next sync.
+// maxPicture is the longest side a picture is kept at; covers are drawn at 130 px or less.
+const maxPicture = 400
+
+// shrink keeps a decoded picture small: a full-size cover is several megabytes.
+func shrink(img image.Image) image.Image {
+	b := img.Bounds()
+	longest := max(b.Dx(), b.Dy())
+	if longest <= maxPicture {
+		return img
+	}
+	w, h := b.Dx()*maxPicture/longest, b.Dy()*maxPicture/longest
+	out := image.NewGray(image.Rect(0, 0, max(w, 1), max(h, 1)))
+	xdraw.ApproxBiLinear.Scale(out, out.Bounds(), img, b, xdraw.Src, nil)
+	return out
+}
+
+// keepOnly forgets pictures and failures the screen no longer lists, so a day
+// of changing covers does not fill the Kindle's memory.
+func (s *assetStore) keepOnly(assets []screen.Asset) {
+	wanted := map[string]bool{}
+	for _, a := range assets {
+		wanted[a.Key] = true
+	}
+	for key := range s.images {
+		if !wanted[key] {
+			delete(s.images, key)
+		}
+	}
+	for key := range s.failed {
+		if !wanted[key] {
+			delete(s.failed, key)
+		}
+	}
+}
+
+// removeStale deletes icon files the current icon list no longer names.
 func (s *assetStore) removeStale(icons map[string]string) {
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
