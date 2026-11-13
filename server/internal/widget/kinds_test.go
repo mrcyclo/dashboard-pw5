@@ -53,18 +53,20 @@ func texts(n Node) []string {
 
 func TestClockSizes(t *testing.T) {
 	k := clockKind{}
-	if k.Name() != "clock" || k.Label() != "Clock" || !reflect.DeepEqual(k.Sizes(), []string{"3x1", "6x1"}) {
+	if k.Name() != "clock" || k.Label() != "Clock" || !reflect.DeepEqual(k.Sizes(), []string{"3x1", "3x2"}) {
 		t.Fatalf("%s %s %v", k.Name(), k.Label(), k.Sizes())
 	}
-	small, wide := k.Build("3x1", Data{Now: testNow}), k.Build("6x1", Data{Now: testNow})
-	for _, tree := range []Node{small, wide} {
+	small, big := k.Build("3x1", Data{Now: testNow}), k.Build("3x2", Data{Now: testNow})
+	for _, tree := range []Node{small, big} {
 		clocks := byKind(tree, "clock")
 		if len(clocks) != 2 || clocks[0]["format"] != "time" || clocks[1]["format"] != "date" {
 			t.Fatalf("clocks %v", clocks)
 		}
 	}
-	if byKind(wide, "clock")[0]["size"].(int) <= byKind(small, "clock")[0]["size"].(int) {
-		t.Error("the wide clock has a bigger time")
+	for i, part := range []string{"time", "date"} {
+		if byKind(big, "clock")[i]["size"].(int) <= byKind(small, "clock")[i]["size"].(int) {
+			t.Errorf("the 3x2 clock has a bigger %s", part)
+		}
 	}
 }
 

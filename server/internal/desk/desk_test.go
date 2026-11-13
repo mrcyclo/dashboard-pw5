@@ -686,7 +686,7 @@ func TestWidgetsInState(t *testing.T) {
 	if len(s.Widgets.Catalog) != 3 || s.Widgets.Catalog[1].Kind != "claude" || s.Widgets.Catalog[1].Label != "Claude usage" {
 		t.Fatalf("catalog %+v", s.Widgets.Catalog)
 	}
-	if !reflect.DeepEqual(s.Widgets.Catalog[0].Sizes, []string{"3x1", "6x1"}) || s.Widgets.Catalog[2].Icon != "music" {
+	if !reflect.DeepEqual(s.Widgets.Catalog[0].Sizes, []string{"3x1", "3x2"}) || s.Widgets.Catalog[2].Icon != "music" {
 		t.Fatalf("catalog %+v", s.Widgets.Catalog)
 	}
 	if !reflect.DeepEqual(s.Widgets.Layout, config.DefaultLayout()) {
@@ -717,8 +717,8 @@ func TestHideRemembersAndShowReturns(t *testing.T) {
 
 func TestResizeMovesToNearestFreeSpot(t *testing.T) {
 	h := newHarness(t)
-	s, err := h.app.SetWidgetSize("clock", "6x1")
-	if err != nil || placement(s, "clock") != (grid.Placement{Kind: "clock", Size: "6x1", Col: 0, Row: 2}) {
+	s, err := h.app.SetWidgetSize("clock", "3x2")
+	if err != nil || placement(s, "clock") != (grid.Placement{Kind: "clock", Size: "3x2", Col: 0, Row: 2}) {
 		t.Fatalf("%+v %v", placement(s, "clock"), err)
 	}
 }
@@ -824,7 +824,7 @@ func TestUnknownKindsAreNotListed(t *testing.T) {
 	cfg := config.Default()
 	cfg.Layout = []grid.Placement{
 		{Kind: "weather", Size: "3x1", Col: 0, Row: 3},
-		{Kind: "clock", Size: "6x1", Col: 0, Row: 0 + 1},
+		{Kind: "clock", Size: "3x2", Col: 0, Row: 1},
 	}
 	h.app = New(Deps{ConfigPath: h.configPath, Config: cfg, Usage: h.usage, Media: h.media, Clients: h.clients,
 		Background: h.background, Log: h.log, Widgets: widget.Default(nil),
@@ -832,7 +832,7 @@ func TestUnknownKindsAreNotListed(t *testing.T) {
 		Now: func() time.Time { return now }})
 	got := h.app.GetState().Widgets.Layout
 	want := []grid.Placement{
-		{Kind: "clock", Size: "6x1", Col: 0, Row: 1},
+		{Kind: "clock", Size: "3x2", Col: 0, Row: 1},
 		{Kind: "claude", Size: "none"},
 		{Kind: "media", Size: "none"},
 	}
@@ -882,7 +882,7 @@ func TestUnknownKindsSurviveASave(t *testing.T) {
 func TestUnknownKindsMakeWayWhenCovered(t *testing.T) {
 	weather := grid.Placement{Kind: "weather", Size: "3x1", Col: 0, Row: 2}
 	h := newHarnessWithLayout(t, append(config.DefaultLayout(), weather))
-	if _, err := h.app.SetWidgetSize("clock", "6x1"); err != nil {
+	if _, err := h.app.SetWidgetSize("clock", "3x2"); err != nil {
 		t.Fatal(err)
 	}
 	got, ok := savedPlacement(t, h, "weather")

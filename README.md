@@ -46,7 +46,7 @@ The Kindle screen is a grid of 6 columns by 8 rows. The top right corner (row 1,
 
 | Widget | Sizes |
 |---|---|
-| Clock | 3×1, 6×1 |
+| Clock | 3×1, 3×2 (larger text) |
 | Claude usage | 6×1, 3×2 (at most four limits) |
 | Music | 6×2, 3×2, 6×1 (without the volume row) |
 
