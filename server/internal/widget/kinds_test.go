@@ -378,3 +378,22 @@ func TestCountdownsAreNotDimmed(t *testing.T) {
 		}
 	}
 }
+
+// The tall size spreads its limits over the whole height instead of packing them at the top.
+func TestClaudeTallSpreadsItsRows(t *testing.T) {
+	tree := claudeKind{}.Build("3x2", Data{Now: testNow, Usage: fullSnapshot()})
+	children := tree["children"].([]Node)
+	growing := 0
+	for _, child := range children {
+		if child["kind"] == "space" && child["grow"] != nil {
+			growing++
+		}
+	}
+	if growing != 5 {
+		t.Fatalf("four limits need five growing spaces around them, got %d", growing)
+	}
+	last := children[len(children)-1]
+	if last["kind"] != "space" || last["grow"] == nil {
+		t.Fatal("the room below the last limit is shared too")
+	}
+}

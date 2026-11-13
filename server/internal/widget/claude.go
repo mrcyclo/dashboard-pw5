@@ -143,11 +143,13 @@ func (claudeKind) Build(size string, d Data) Node {
 	if stale != nil {
 		header = append(header, stale)
 	}
-	rows := []Node{Row(12, header...), Rule()}
+	// Equal growing spaces around each limit spread them over the whole height.
+	rows := []Node{Row(12, header...), Space(8), Rule()}
 	for _, l := range list {
-		rows = append(rows, tallRow(l))
+		rows = append(rows, Space(0).Grow(1), tallRow(l))
 	}
-	return Col(8, rows...)
+	rows = append(rows, Space(0).Grow(1))
+	return Col(0, rows...)
 }
 
 // wide is the original look: a titled header with the shared reset time on the
