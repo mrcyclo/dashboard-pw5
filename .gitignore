@@ -23,3 +23,6 @@ claudedash.koplugin/cd_config_local.lua
 
 # Working specs and plans, kept locally only
 docs/superpowers/
+
+# Go test binaries built outside the temp folder the antivirus watches
+server/.gotest/
