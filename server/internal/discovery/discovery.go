@@ -64,10 +64,19 @@ type Broadcaster struct {
 	targets func() []net.IP
 	target  int
 	stop    chan struct{}
+	listen  func() (net.PacketConn, error)
+	// Log, when set, reports a socket that could not be opened.
+	Log func(format string, args ...any)
 }
 
 func NewBroadcaster(b Beacon, every time.Duration, targets func() []net.IP) *Broadcaster {
-	return &Broadcaster{beacon: b, every: every, targets: targets, target: Port}
+	return &Broadcaster{
+		beacon:  b,
+		every:   every,
+		targets: targets,
+		target:  Port,
+		listen:  func() (net.PacketConn, error) { return net.ListenPacket("udp4", ":0") },
+	}
 }
 
 func (b *Broadcaster) SetPort(port int) {
@@ -97,14 +106,35 @@ func (b *Broadcaster) Stop() {
 }
 
 func (b *Broadcaster) run(stop chan struct{}) {
-	conn, err := net.ListenPacket("udp4", ":0")
-	if err != nil {
-		return
-	}
-	defer conn.Close()
 	ticker := time.NewTicker(b.every)
 	defer ticker.Stop()
+	var conn net.PacketConn
+	failing := false
+	defer func() {
+		if conn != nil {
+			conn.Close()
+		}
+	}()
 	for {
+		// The PC may start before its network is up, so a failed socket is tried again.
+		if conn == nil {
+			c, err := b.listen()
+			if err != nil {
+				// Logged once per outage, not every tick.
+				if b.Log != nil && !failing {
+					b.Log("beacon: %v", err)
+				}
+				failing = true
+				select {
+				case <-stop:
+					return
+				case <-ticker.C:
+				}
+				continue
+			}
+			conn = c
+			failing = false
+		}
 		b.mu.Lock()
 		data, port := Encode(b.beacon), b.target
 		b.mu.Unlock()

@@ -80,7 +80,9 @@ type display struct {
 }
 
 type fetched struct {
-	kind  string // "screen", "action", "settings", "background", "asset"
+	kind string // "screen", "action", "settings", "background", "asset"
+	// base is the PC asked, so a late reply from a PC left behind is recognized.
+	base  string
 	epoch int
 	key   string
 	path  string
@@ -118,6 +120,8 @@ type loop struct {
 	background *image.Gray
 	bgHash     string
 	bgLoading  string
+	// failedShow holds regions FBInk could not show; they go out again with the next draw.
+	failedShow map[string]bool
 
 	assets  *assetStore
 	refresh *string
@@ -141,13 +145,25 @@ func (l *loop) logf(format string, args ...any) {
 
 // Run shows the dashboard until exit is tapped (nil) or ctx ends.
 func Run(ctx context.Context, c Config) error {
+	l := newLoop(c)
+	os.MkdirAll(filepath.Join(c.Dir, "cache", "icons"), 0o755)
+	l.loadCache()
+	if c.Manual != "" {
+		l.base = "http://" + c.Manual
+	}
+	l.readBattery()
+	l.draw(nil, true, true)
+	return l.run(ctx)
+}
+
+func newLoop(c Config) *loop {
 	if c.Now == nil {
 		c.Now = time.Now
 	}
 	if c.MessageFor == 0 {
 		c.MessageFor = 5 * time.Second
 	}
-	l := &loop{
+	return &loop{
 		c:          c,
 		img:        image.NewGray(image.Rect(0, 0, render.Width, render.Height)),
 		shown:      map[string]tree.Node{},
@@ -158,15 +174,12 @@ func Run(ctx context.Context, c Config) error {
 		assets:     newAssetStore(filepath.Join(c.Dir, "cache", "icons")),
 		results:    make(chan fetched, 16),
 		expired:    make(chan string, 8),
+		failedShow: map[string]bool{},
 	}
-	os.MkdirAll(filepath.Join(c.Dir, "cache", "icons"), 0o755)
-	l.loadCache()
-	if c.Manual != "" {
-		l.base = "http://" + c.Manual
-	}
-	l.readBattery()
-	l.draw(nil, true, true)
+}
 
+func (l *loop) run(ctx context.Context) error {
+	c := l.c
 	poll := time.NewTimer(0)
 	defer poll.Stop()
 	minute := time.NewTimer(untilNextMinute(c.Now()))
@@ -250,17 +263,28 @@ func (l *loop) draw(names []string, full, flash bool) {
 	if full {
 		if err := l.c.Display.Full(l.img, flash); err != nil {
 			l.logf("display: %v", err)
+			l.failedShow["all"] = true
+			return
 		}
+		clear(l.failedShow)
 		return
 	}
+	for name := range l.failedShow {
+		names = append(names, name)
+	}
+	shown := map[string]bool{}
 	for _, name := range names {
 		r, ok := l.regions[name]
-		if !ok {
+		if !ok || shown[name] {
 			continue
 		}
+		shown[name] = true
 		if err := l.c.Display.Show(l.img, r, false); err != nil {
 			l.logf("display %s: %v", name, err)
+			l.failedShow[name] = true
+			continue
 		}
+		delete(l.failedShow, name)
 	}
 }
 
@@ -372,6 +396,9 @@ func (l *loop) result(r fetched) {
 		l.apply(r.body)
 	case "action":
 		l.actions--
+		if r.base != l.base {
+			return
+		}
 		if r.err != nil {
 			l.logf("action %s: %v", r.key, r.err)
 			return
@@ -450,6 +477,7 @@ func (l *loop) apply(body []byte) {
 	if changes.Full || len(names) > 0 {
 		screen.Save(filepath.Join(l.c.Dir, "cache", "screen.json"), current)
 	}
+	l.assets.setCurrent(current.Icons)
 	if changes.Full {
 		l.assets.removeStale(current.Icons)
 	}
@@ -508,6 +536,9 @@ func (l *loop) syncBackground() {
 	if hash == l.bgHash || hash == l.bgLoading {
 		return
 	}
+	if f, failed := l.assets.failed["background:"+hash]; failed && l.c.Now().Before(f.retryAt) {
+		return
+	}
 	if hash == "" {
 		l.background, l.bgHash = nil, ""
 		os.Remove(filepath.Join(l.c.Dir, "cache", "background.png"))
@@ -523,13 +554,12 @@ func (l *loop) applyBackground(r fetched) {
 		return
 	}
 	l.bgLoading = ""
-	if r.err != nil {
-		return
-	}
 	img, err := png.Decode(bytes.NewReader(r.body))
-	if err != nil {
+	if r.err != nil || err != nil {
+		l.assets.fail("background:"+r.key, l.c.Now())
 		return
 	}
+	delete(l.assets.failed, "background:"+r.key)
 	l.background, l.bgHash = toGray(img), r.key
 	os.WriteFile(filepath.Join(l.c.Dir, "cache", "background.png"), r.body, 0o644)
 	os.WriteFile(filepath.Join(l.c.Dir, "cache", "background.hash"), []byte(r.key), 0o644)
@@ -604,6 +634,11 @@ func uses(node any, a screen.Asset) bool {
 
 // tap handles a touch; it reports true when exit was tapped.
 func (l *loop) tap(p image.Point, poll *time.Timer) bool {
+	// A touch while the Kindle sleeps means it is awake again, even if the wake event was missed.
+	if l.sleeping {
+		l.power("outOfScreenSaver", poll)
+		return false
+	}
 	switch {
 	case p.In(l.corner.Exit):
 		return true
@@ -632,7 +667,9 @@ func (l *loop) tap(p image.Point, poll *time.Timer) bool {
 		base, action := l.base, b.Action
 		go func() {
 			resp, err := l.c.HTTP.Post(base+"/action/"+action, "application/json", nil)
-			l.results <- finish("action", "", 0, action, resp, err)
+			r := finish("action", "", 0, action, resp, err)
+			r.base = base
+			l.results <- r
 		}()
 		poll.Reset(l.interval())
 		return false
@@ -743,6 +780,7 @@ func (l *loop) loadCache() {
 			l.shown[w.Kind] = w.Tree
 		}
 		l.assets.loadIcons(s.Icons)
+		l.assets.setCurrent(s.Icons)
 	}
 	if data, err := os.ReadFile(filepath.Join(cache, "kindle.json")); err == nil {
 		json.Unmarshal(data, &l.settings)

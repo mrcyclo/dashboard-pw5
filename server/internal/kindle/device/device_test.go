@@ -223,3 +223,27 @@ func TestPowerEventsWaitsWithTheContext(t *testing.T) {
 		t.Fatal("PowerEvents must end with its context")
 	}
 }
+
+type markerRunner struct {
+	fakeRunner
+	marker      string
+	markedFirst bool
+	seen        bool
+}
+
+func (m *markerRunner) Run(cmd string) (string, error) {
+	if !m.seen {
+		m.seen = true
+		_, err := os.Stat(m.marker)
+		m.markedFirst = err == nil
+	}
+	return m.fakeRunner.Run(cmd)
+}
+
+func TestPauseLeavesTheMarkerBeforeTakingOver(t *testing.T) {
+	m := &markerRunner{marker: filepath.Join(t.TempDir(), "paused")}
+	Pause(m, m.marker)
+	if !m.markedFirst {
+		t.Fatal("a crash during the takeover must still leave a marker for launch.sh")
+	}
+}

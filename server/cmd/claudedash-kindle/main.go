@@ -36,6 +36,9 @@ const (
 	logKeep  = 250 << 10
 )
 
+// fontFiles are the regular and bold faces, checked before the screen is taken.
+var fontFiles = []string{appDir + "/NotoSans-Regular.ttf", appDir + "/NotoSans-Bold.ttf"}
+
 func main() {
 	logf := newLogger(filepath.Join(appDir, "claudedash.log"), logLimit, logKeep)
 	logf("starting")
@@ -45,6 +48,13 @@ func main() {
 		logf("FBInk missing: %v", err)
 		shell.Run(`eips 1 1 "FBInk not found. Reinstall the jailbreak hotfix."`)
 		os.Exit(1)
+	}
+	for _, font := range fontFiles {
+		if _, err := os.Stat(font); err != nil {
+			logf("font missing: %v", err)
+			shell.Run(`eips 1 1 "Claude Dashboard files are missing. Reinstall it."`)
+			os.Exit(1)
+		}
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
@@ -62,7 +72,7 @@ func main() {
 
 func run(ctx context.Context, shell device.Shell, logf func(string, ...any)) error {
 	os.MkdirAll(workDir, 0o755)
-	fonts, err := render.LoadFonts(filepath.Join(appDir, "NotoSans-Regular.ttf"), filepath.Join(appDir, "NotoSans-Bold.ttf"))
+	fonts, err := render.LoadFonts(fontFiles[0], fontFiles[1])
 	if err != nil {
 		return fmt.Errorf("fonts: %w", err)
 	}

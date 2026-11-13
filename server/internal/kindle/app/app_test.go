@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"image"
 	"net"
 	"net/http"
@@ -96,6 +97,7 @@ type pc struct {
 	mu      sync.Mutex
 	icon    string
 	hash    string
+	clock   string
 	stall   chan struct{}
 	actions atomic.Int32
 	server  *httptest.Server
@@ -112,7 +114,7 @@ func (p *pc) screen() []byte {
 					map[string]any{"kind": "button", "id": "pp", "icon": p.icon, "size": 120, "action": "media.play-pause",
 						"patch": []any{map[string]any{"id": "pp", "op": "toggle", "prop": "icon", "values": []any{p.icon, "other"}}}},
 				}}},
-			map[string]any{"kind": "clock", "hash": "c1", "rect": map[string]any{"x": 48, "y": 48, "w": 562, "h": 180},
+			map[string]any{"kind": "clock", "hash": "c" + p.clock, "rect": map[string]any{"x": 48, "y": 48, "w": 562, "h": 180},
 				"tree": map[string]any{"kind": "clock", "format": "time", "size": 72}},
 		},
 		"icons": map[string]any{},
@@ -477,5 +479,89 @@ func TestRepeatedBeaconsDoNotRepaint(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if after := len(h.display.snapshot()); after != before {
 		t.Fatalf("%d repaints for beacons that changed nothing", after-before)
+	}
+}
+
+func TestTapWhileAsleepWakesInsteadOfActing(t *testing.T) {
+	power := make(chan string, 2)
+	h := start(t, t.TempDir(), func(c *Config) { c.Power = power })
+	h.waitState(t, "first-run screen", func(st render.State) bool { return st.FirstRun })
+	power <- "goingToScreenSaver"
+	time.Sleep(50 * time.Millisecond)
+	h.taps <- image.Pt(1200, 60)
+	h.waitState(t, "a wake repaint", func(st render.State) bool { return st.FirstRun })
+	select {
+	case <-h.done:
+		t.Fatal("a tap while asleep must not exit")
+	case <-time.After(100 * time.Millisecond):
+	}
+	if !h.runner.ran("lipc-set-prop com.lab126.powerd preventScreenSaver 1") {
+		t.Fatal("waking blocks the screensaver again")
+	}
+}
+
+type flakyDisplay struct {
+	fakeDisplay
+	failNext atomic.Bool
+}
+
+func (d *flakyDisplay) Show(img *image.Gray, r image.Rectangle, flash bool) error {
+	d.fakeDisplay.Show(img, r, flash)
+	if d.failNext.Swap(false) {
+		return errors.New("fbink failed")
+	}
+	return nil
+}
+
+func TestFailedRegionIsShownAgainNextTime(t *testing.T) {
+	p := newPC(t)
+	flaky := &flakyDisplay{}
+	h := start(t, t.TempDir(), func(c *Config) { c.Display = flaky })
+	h.beacons <- p.seen()
+	h.waitState(t, "the PC's screen", online)
+	time.Sleep(80 * time.Millisecond)
+	media := image.Rect(48, 1224, 1188, 1600)
+	shows := func() int {
+		count := 0
+		for _, c := range flaky.snapshot() {
+			if c.rect == media {
+				count++
+			}
+		}
+		return count
+	}
+	flaky.failNext.Store(true)
+	p.mu.Lock()
+	p.hash = "m2"
+	p.mu.Unlock()
+	deadline := time.Now().Add(2 * time.Second)
+	for shows() == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	// Only the clock changes next, but the music region that failed is shown with it.
+	p.mu.Lock()
+	p.clock = "2"
+	p.mu.Unlock()
+	for time.Now().Before(deadline) {
+		if shows() >= 2 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("the failed region was not shown again")
+}
+
+func TestActionReplyFromAnOldPCIsIgnored(t *testing.T) {
+	p := newPC(t)
+	l := newLoop(Config{Dir: t.TempDir(), Fonts: fonts(t), Display: &fakeDisplay{}, Runner: &fakeRunner{}, Now: time.Now})
+	l.apply(p.screen())
+	before := l.scr
+	l.base, l.actions = "http://new-pc:8377", 1
+	p.mu.Lock()
+	p.hash = "late"
+	p.mu.Unlock()
+	l.result(fetched{kind: "action", base: "http://old-pc:8377", key: "media.next", body: p.screen()})
+	if l.scr != before || l.actions != 0 {
+		t.Fatalf("a reply from the PC left behind must only free its slot: actions %d", l.actions)
 	}
 }

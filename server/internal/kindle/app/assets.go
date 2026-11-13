@@ -32,6 +32,8 @@ type assetStore struct {
 	images  map[string]image.Image
 	loading map[string]bool
 	failed  map[string]failure
+	// current is the screen's icon list, name to hash.
+	current map[string]string
 }
 
 func newAssetStore(dir string) *assetStore {
@@ -132,7 +134,7 @@ func (s *assetStore) keepOnly(assets []screen.Asset) {
 		}
 	}
 	for key := range s.failed {
-		if !wanted[key] {
+		if !wanted[key] && !strings.HasPrefix(key, "background:") {
 			delete(s.failed, key)
 		}
 	}
@@ -158,25 +160,26 @@ func (s *assetStore) removeStale(icons map[string]string) {
 		}
 	}
 	for key := range s.sized {
-		name, _, _ := strings.Cut(key, "@")
-		if _, ok := icons[name]; !ok {
+		name, rest, _ := strings.Cut(key, "@")
+		hash, _, _ := strings.Cut(rest, "@")
+		if _, isBundled := bundled[name]; !isBundled && icons[name] != hash {
 			delete(s.sized, key)
 		}
 	}
 }
 
-// Icon draws a downloaded icon at a size, or one bundled for the corner.
+func (s *assetStore) setCurrent(icons map[string]string) {
+	s.current = icons
+}
+
+// Icon draws the screen's current version of an icon at a size, or one bundled for the corner.
 func (s *assetStore) Icon(name string, size int) *image.Gray {
-	key := name + "@" + strconv.Itoa(size)
+	hash := s.current[name]
+	key := name + "@" + hash + "@" + strconv.Itoa(size)
 	if img, ok := s.sized[key]; ok {
 		return img
 	}
-	var data []byte
-	for k, v := range s.svgs {
-		if strings.HasPrefix(k, name+":") {
-			data = v
-		}
-	}
+	data := s.svgs[name+":"+hash]
 	if data == nil {
 		data = bundled[name]
 	}

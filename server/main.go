@@ -89,10 +89,9 @@ func main() {
 	mediaService := newMediaService(lg)
 	usagePoll := newPoller(service, time.Duration(cfg.CacheSeconds)*time.Second)
 	hostname, _ := os.Hostname()
-	lan := &lanServer{
-		log:    lg,
-		beacon: discovery.NewBroadcaster(discovery.NewBeacon(cfg.PCID, hostname, cfg.Port), 2*time.Second, discovery.BroadcastTargets),
-	}
+	beacon := discovery.NewBroadcaster(discovery.NewBeacon(cfg.PCID, hostname, cfg.Port), 2*time.Second, discovery.BroadcastTargets)
+	beacon.Log = func(format string, args ...any) { lg.Add(applog.Kindle, format, args...) }
+	lan := &lanServer{log: lg, beacon: beacon}
 	sh := &shell{}
 	widgets := widget.Default(mediaService.Do)
 

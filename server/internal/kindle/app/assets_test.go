@@ -38,3 +38,19 @@ func TestLargePicturesAreShrunk(t *testing.T) {
 		t.Fatalf("stored %v", b)
 	}
 }
+
+func TestIconFollowsTheCurrentHash(t *testing.T) {
+	s := newAssetStore(t.TempDir())
+	full := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#000" d="M0 0h24v24H0z"/></svg>`
+	corner := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#000" d="M0 0h2v2H0z"/></svg>`
+	s.store(screen.Asset{Key: "icon:play:h1", Icon: "play"}, []byte(full))
+	s.setCurrent(map[string]string{"play": "h1"})
+	if img := s.Icon("play", 24); img == nil || img.GrayAt(12, 12).Y > 128 {
+		t.Fatal("the first icon is filled")
+	}
+	s.store(screen.Asset{Key: "icon:play:h2", Icon: "play"}, []byte(corner))
+	s.setCurrent(map[string]string{"play": "h2"})
+	if img := s.Icon("play", 24); img == nil || img.GrayAt(12, 12).Y < 128 {
+		t.Fatal("a new hash must draw the new icon")
+	}
+}

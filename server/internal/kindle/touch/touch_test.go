@@ -28,6 +28,10 @@ func TestFindDevice(t *testing.T) {
 	if got := FindDevice(withAccel); got != "/dev/input/event1" {
 		t.Fatalf("an accelerometer is not a touch screen: %q", got)
 	}
+	withOther := "N: Name=\"hall-sensor\"\nH: Handlers=event2\nB: ABS=3\n\n" + pw5Devices
+	if got := FindDevice(withOther); got != "/dev/input/event1" {
+		t.Fatalf("a device named like a touch screen wins: %q", got)
+	}
 	if FindDevice("N: Name=\"gpio-keys\"\nH: Handlers=kbd event0\n") != "" {
 		t.Fatal("no touch screen")
 	}

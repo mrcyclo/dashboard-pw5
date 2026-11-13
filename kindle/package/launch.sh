@@ -5,6 +5,14 @@ MARKER=/var/tmp/claudedash.paused
 DUMP=/var/tmp/claudedash-fb.dump
 FBINK=/mnt/us/libkh/bin/fbink
 
+# A second tap on the launcher while the dashboard runs would fight it for the screen.
+if [ -f "$MARKER" ]; then
+    PID=$(cat "$MARKER")
+    if [ -n "$PID" ] && grep -q claudedash "/proc/$PID/cmdline" 2>/dev/null; then
+        exit 0
+    fi
+fi
+
 # /mnt/us is FAT, so the binary runs from a copy in /tmp.
 cp -f "$APP/claudedash" /tmp/claudedash-bin
 chmod +x /tmp/claudedash-bin

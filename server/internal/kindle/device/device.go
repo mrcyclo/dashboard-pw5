@@ -86,12 +86,14 @@ var takeover = []string{
 	"iptables -I INPUT -p udp --dport 8378 -j ACCEPT",
 }
 
-// Pause takes the screen from the Kindle UI and leaves a marker while it is held.
+// Pause takes the screen from the Kindle UI. The marker, holding this process's
+// id, is written first so launch.sh can undo a takeover that crashed halfway.
 func Pause(r Runner, marker string) error {
+	err := os.WriteFile(marker, []byte(strconv.Itoa(os.Getpid())), 0o644)
 	for _, cmd := range takeover {
 		r.Run(cmd)
 	}
-	return os.WriteFile(marker, []byte(strconv.Itoa(os.Getpid())), 0o644)
+	return err
 }
 
 // Restore gives the screen back, once: without the marker it does nothing.

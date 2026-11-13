@@ -1,8 +1,10 @@
 package discovery
 
 import (
+	"errors"
 	"net"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -148,5 +150,37 @@ func TestBroadcastTargetsAreIPv4(t *testing.T) {
 		if ip.To4() == nil {
 			t.Errorf("%v", ip)
 		}
+	}
+}
+
+func TestBroadcasterRetriesWhenItCannotOpenASocket(t *testing.T) {
+	a, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+
+	b := NewBroadcaster(sample, 20*time.Millisecond, func() []net.IP { return []net.IP{net.ParseIP("127.0.0.1")} })
+	b.target = a.LocalAddr().(*net.UDPAddr).Port
+	failures := 0
+	b.listen = func() (net.PacketConn, error) {
+		if failures < 2 {
+			failures++
+			return nil, errors.New("network is down")
+		}
+		return net.ListenPacket("udp4", ":0")
+	}
+	var logged atomic.Int32
+	b.Log = func(string, ...any) { logged.Add(1) }
+	b.Start()
+	defer b.Stop()
+
+	a.SetReadDeadline(time.Now().Add(2 * time.Second))
+	buf := make([]byte, 1024)
+	if _, _, err := a.ReadFrom(buf); err != nil {
+		t.Fatalf("the broadcaster must keep trying: %v", err)
+	}
+	if logged.Load() == 0 {
+		t.Fatal("the failure is logged")
 	}
 }

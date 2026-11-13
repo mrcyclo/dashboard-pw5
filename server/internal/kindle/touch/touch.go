@@ -27,8 +27,10 @@ const (
 var handler = regexp.MustCompile(`event\d+`)
 
 // FindDevice picks the touch screen from the text of /proc/bus/input/devices:
-// the first device with absolute axes that is not an accelerometer.
+// a device with absolute axes that is not an accelerometer, preferring one
+// named like a touch screen ("pt_mt" on the PW5).
 func FindDevice(procDevices string) string {
+	fallback := ""
 	for _, block := range strings.Split(procDevices, "\n\n") {
 		var name, event string
 		var absolute bool
@@ -42,11 +44,17 @@ func FindDevice(procDevices string) string {
 				absolute = true
 			}
 		}
-		if absolute && event != "" && !strings.Contains(name, "accel") {
+		if !absolute || event == "" || strings.Contains(name, "accel") {
+			continue
+		}
+		if strings.Contains(name, "pt_mt") || strings.Contains(name, "touch") {
 			return "/dev/input/" + event
 		}
+		if fallback == "" {
+			fallback = "/dev/input/" + event
+		}
 	}
-	return ""
+	return fallback
 }
 
 // Decoder follows one finger and reports where it lifted.
