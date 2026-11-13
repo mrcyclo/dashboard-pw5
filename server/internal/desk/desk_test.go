@@ -813,7 +813,7 @@ func TestActRunsWidgetActions(t *testing.T) {
 	}
 }
 
-func TestUnknownKindsInConfigAreDropped(t *testing.T) {
+func TestUnknownKindsAreNotListed(t *testing.T) {
 	h := newHarness(t)
 	cfg := config.Default()
 	cfg.Layout = []grid.Placement{
@@ -832,5 +832,55 @@ func TestUnknownKindsInConfigAreDropped(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v", got)
+	}
+}
+
+func newHarnessWithLayout(t *testing.T, layout []grid.Placement) *harness {
+	h := newHarness(t)
+	cfg := config.Default()
+	cfg.Layout = layout
+	h.app = New(Deps{ConfigPath: h.configPath, Config: cfg, Usage: h.usage, Media: h.media, Clients: h.clients,
+		Background: h.background, Log: h.log, Widgets: widget.Default(nil),
+		TokenExpiry: func() (time.Time, error) { return h.tokenExpiry, nil }, LanIP: func() string { return "" },
+		Now: func() time.Time { return now }})
+	return h
+}
+
+func savedPlacement(t *testing.T, h *harness, kind string) (grid.Placement, bool) {
+	t.Helper()
+	for _, p := range h.saved(t).Layout {
+		if p.Kind == kind {
+			return p, true
+		}
+	}
+	return grid.Placement{}, false
+}
+
+// A newer build's widget must survive this build saving the config.
+func TestUnknownKindsSurviveASave(t *testing.T) {
+	weather := grid.Placement{Kind: "weather", Size: "3x1", Col: 0, Row: 3}
+	h := newHarnessWithLayout(t, append(config.DefaultLayout(), weather))
+	if _, err := h.app.SetWidgetSize("media", "none"); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := savedPlacement(t, h, "weather"); !ok || got != weather {
+		t.Fatalf("weather %+v %v", got, ok)
+	}
+	for _, p := range h.app.GetState().Widgets.Layout {
+		if p.Kind == "weather" {
+			t.Fatal("the window only lists kinds it knows")
+		}
+	}
+}
+
+func TestUnknownKindsMakeWayWhenCovered(t *testing.T) {
+	weather := grid.Placement{Kind: "weather", Size: "3x1", Col: 0, Row: 3}
+	h := newHarnessWithLayout(t, append(config.DefaultLayout(), weather))
+	if _, err := h.app.SetWidgetSize("clock", "6x1"); err != nil {
+		t.Fatal(err)
+	}
+	got, ok := savedPlacement(t, h, "weather")
+	if !ok || got.Size != grid.None || got.Col != 0 || got.Row != 3 {
+		t.Fatalf("a covered unknown widget is kept hidden in its spot: %+v %v", got, ok)
 	}
 }

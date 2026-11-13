@@ -113,12 +113,13 @@ The Screen page also sets the front light and its warmth, in the Paperwhite 5's 
 
 ## 2. Install the plugin on the Kindle
 
-1. Create `claudedash.koplugin/cd_config_local.lua` containing `return { host = "IP of your PC" }`, using the address shown on the Overview page (add `port = ...` if you changed the port). This file overrides the sample values in `cd_config.lua` and is not tracked by git.
-2. Connect the Kindle to the PC with a USB cable.
-3. Copy the whole `claudedash.koplugin` folder to `koreader/plugins/` on the Kindle, including `icons/`. When updating from a version before widgets, delete the old `cd_layout.lua` there. The `spec/` folder is only for tests and can be left out.
-4. Unplug the cable and restart KOReader.
-5. In KOReader: top menu, tools (the wrench icon), `Claude Dashboard`. If it is missing, check that the plugin is enabled in the plugin manager.
-6. Tap `✕` in the top right corner to leave the dashboard. The circular arrow to its left repaints the whole screen once.
+1. Update and start the PC app first: this plugin asks for `/screen.json`, which older PC apps do not have, and would wait for the PC forever.
+2. Create `claudedash.koplugin/cd_config_local.lua` containing `return { host = "IP of your PC" }`, using the address shown on the Overview page (add `port = ...` if you changed the port). This file overrides the sample values in `cd_config.lua` and is not tracked by git.
+3. Connect the Kindle to the PC with a USB cable.
+4. Copy the whole `claudedash.koplugin` folder to `koreader/plugins/` on the Kindle, including `icons/`. When updating from a version before widgets, delete the old `cd_layout.lua` there. The `spec/` folder is only for tests and can be left out.
+5. Unplug the cable and restart KOReader.
+6. In KOReader: top menu, tools (the wrench icon), `Claude Dashboard`. If it is missing, check that the plugin is enabled in the plugin manager.
+7. Tap `✕` in the top right corner to leave the dashboard. The circular arrow to its left repaints the whole screen once.
 
 To avoid black flashes, each update repaints only the widgets that changed.
 

@@ -143,7 +143,9 @@ local function place_col(node, x, y, w, h, ctx)
     local kids = children_of(node, ctx)
     local gap = num(node.gap, 0)
     local align = str(node.align)
-    if align == "" then align = "stretch" end
+    if align == "" then
+        align = "stretch"
+    end
 
     local sizes, used, weights = {}, 0, 0
     for i, child in ipairs(kids) do
@@ -179,7 +181,9 @@ local function place_row(node, x, y, w, h, ctx)
     local kids = children_of(node, ctx)
     local gap = num(node.gap, 0)
     local align = str(node.align)
-    if align == "" then align = "center" end
+    if align == "" then
+        align = "center"
+    end
 
     local sizes, used, weights = {}, 0, 0
     for i, child in ipairs(kids) do

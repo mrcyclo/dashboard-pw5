@@ -80,14 +80,19 @@ function placeCol(node, x, y, w, h, ctx) {
   let cy = y
   kids.forEach((child, i) => {
     let ch = sizes[i][1]
-    if (weights > 0) ch += (leftover * growOf(child)) / weights
+    if (weights > 0) {
+      ch += (leftover * growOf(child)) / weights
+    }
     let cw = w
     let cx = x
     const stretches = align === 'stretch' || child.kind === 'bar' || child.kind === 'rule'
     if (!stretches) {
       cw = Math.min(sizes[i][0], w)
-      if (align === 'center') cx = x + (w - cw) / 2
-      else if (align === 'end') cx = x + w - cw
+      if (align === 'center') {
+        cx = x + (w - cw) / 2
+      } else if (align === 'end') {
+        cx = x + w - cw
+      }
     }
     place(child, cx, cy, cw, ch, ctx)
     cy += ch + gap
@@ -109,13 +114,18 @@ function placeRow(node, x, y, w, h, ctx) {
   let cx = x
   kids.forEach((child, i) => {
     let cw = sizes[i][0]
-    if (weights > 0) cw += (leftover * growOf(child)) / weights
+    if (weights > 0) {
+      cw += (leftover * growOf(child)) / weights
+    }
     let ch = h
     let cy = y
     if (child.kind !== 'col' && child.kind !== 'rule') {
       ch = sizes[i][1]
-      if (align === 'center') cy = y + (h - ch) / 2
-      else if (align === 'end') cy = y + h - ch
+      if (align === 'center') {
+        cy = y + (h - ch) / 2
+      } else if (align === 'end') {
+        cy = y + h - ch
+      }
     }
     place(child, cx, cy, cw, ch, ctx)
     cx += cw + gap
@@ -134,14 +144,20 @@ function emit(node, x, y, w, h, ctx) {
   if (TEXTUAL.has(node.kind) && bottom - top < Math.ceil(num(node.size, 20) * LINE_HEIGHT)) return
 
   const out = { node, x: left, y: top, w: right - left, h: bottom - top }
-  if (TEXTUAL.has(node.kind)) out.text = textOf(node, ctx)
+  if (TEXTUAL.has(node.kind)) {
+    out.text = textOf(node, ctx)
+  }
   ctx.boxes.push(out)
 }
 
 function place(node, x, y, w, h, ctx) {
-  if (node.kind === 'col') placeCol(node, x, y, w, h, ctx)
-  else if (node.kind === 'row') placeRow(node, x, y, w, h, ctx)
-  else if (node.kind !== 'space') emit(node, x, y, w, h, ctx)
+  if (node.kind === 'col') {
+    placeCol(node, x, y, w, h, ctx)
+  } else if (node.kind === 'row') {
+    placeRow(node, x, y, w, h, ctx)
+  } else if (node.kind !== 'space') {
+    emit(node, x, y, w, h, ctx)
+  }
 }
 
 // Returns the drawable boxes in paint order: { node, x, y, w, h, text }.

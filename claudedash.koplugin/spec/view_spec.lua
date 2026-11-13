@@ -152,3 +152,27 @@ assert(view.hit(buttons, 600, 900) == nil, "a tap on nothing")
 -- Before the PC was ever reached.
 root = view.build({ shown = {}, now = 0, image_for = function() return nil end, icon_file = function() return nil end, icon_dir = "icons" })
 paint(root)
+
+local function texts(widget, out)
+    out = out or {}
+    if widget.text then
+        table.insert(out, widget.text)
+    end
+    for _, child in ipairs(widget) do
+        texts(child, out)
+    end
+    return out
+end
+
+local function has(list, wanted)
+    for _, text in ipairs(list) do
+        if text == wanted then return true end
+    end
+    return false
+end
+
+local never = { shown = {}, now = 0, image_for = function() return nil end, icon_file = function() return nil end, icon_dir = "icons" }
+assert(has(texts(view.build(never)), "Waiting for the PC"), "before the PC was ever reached")
+local hidden = state(function() return nil end)
+hidden.screen.widgets = {}
+assert(not has(texts(view.build(hidden)), "Waiting for the PC"), "every widget hidden is not waiting for the PC")

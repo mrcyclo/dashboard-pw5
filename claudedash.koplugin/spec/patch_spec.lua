@@ -81,3 +81,13 @@ shown, pending = patch.stack(nil, json_null, original, now)
 eq(tree.find(shown, "pp").icon, "pause", "null patch")
 shown = patch.apply(original, { json_null, { id = "pp", op = "explode", prop = "icon" } })
 eq(tree.find(shown, "pp").icon, "pause", "unknown op")
+
+-- With the PC off no reply comes, so a prediction must also end on its own.
+shown, pending = patch.stack(nil, toggle, original, now)
+result, still = patch.expire(pending, original, now + 3)
+assert(result == nil and still == pending, "still held before 4 seconds")
+result, still = patch.expire(pending, original, now + 4)
+eq(tree.find(result, "pp").icon, "pause", "back to what the PC last said")
+assert(still == nil, "the expired prediction is dropped")
+result, still = patch.expire(nil, original, now + 10)
+assert(result == nil and still == nil, "nothing pending, nothing to do")

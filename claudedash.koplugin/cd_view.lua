@@ -285,7 +285,8 @@ function view.build(state)
         end
     end
 
-    if #widgets == 0 then
+    -- Only before the PC was ever reached: a screen with every widget hidden is a choice.
+    if not state.screen then
         local waiting = text_widget("Waiting for the PC", 45, true, false, scale)
         local size = waiting:getSize()
         table.insert(layers, at(waiting, (screen_w - size.w) / 2, (screen_h - size.h) / 2))

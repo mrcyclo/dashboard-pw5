@@ -109,3 +109,20 @@ local failed = {}
 failed["icon:play:p1"] = format.note_failure(failed["icon:play:p1"], "icon:play:p1", 1000)
 eq(format.retry_blocked(failed["icon:play:p1"], "icon:play:p1", 1030), true, "waits")
 eq(format.retry_blocked(failed["icon:play:p1"], "icon:play:p1", 1060), false, "tries again")
+
+-- A widget that drops out (its entry broke) under the same layout hash leaves
+-- its old pixels behind unless the whole screen is repainted.
+local before = screen.accept(nil, reply("L1", { widget("clock", "a"), widget("claude", "b") }))
+local after
+after, changes = screen.accept(before, reply("L1", { widget("clock", "a"), widget("claude", "b", { tree = json_null }) }))
+eq(#after.widgets, 1, "the broken widget is gone")
+eq(changes.full, true, "a widget leaving repaints everything")
+
+-- Icon files from older hashes, or of icons no longer used, are cleaned up.
+local cached = { "play-p1.svg", "play-old.svg", "pause-p2.svg", "gone-x.svg", "notes.txt" }
+local stale = screen.stale_icon_files(cached, { play = "p1", pause = "p2" })
+table.sort(stale)
+eq(#stale, 2, "two stale files")
+eq(stale[1], "gone-x.svg", "an icon no screen uses")
+eq(stale[2], "play-old.svg", "an older version")
+eq(#screen.stale_icon_files(cached, {}), 0, "nothing is removed before the PC listed its icons")

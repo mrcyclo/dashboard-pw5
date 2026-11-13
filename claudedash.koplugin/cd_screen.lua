@@ -63,6 +63,18 @@ function screen.accept(previous, reply)
     for _, w in ipairs(previous.widgets) do
         old[w.kind] = w.hash
     end
+    -- The same layout with a different set of widgets means one dropped out or
+    -- came back; its rectangle needs repainting whichever way it went.
+    if #previous.widgets ~= #current.widgets then
+        changes.full = true
+        return current, changes
+    end
+    for _, w in ipairs(current.widgets) do
+        if old[w.kind] == nil then
+            changes.full = true
+            return current, changes
+        end
+    end
     for _, w in ipairs(current.widgets) do
         if old[w.kind] ~= w.hash or w.hash == "" then
             changes.widgets[w.kind] = true
@@ -165,6 +177,20 @@ function screen.images(current)
         collect_images(w.tree, out, seen)
     end
     return out
+end
+
+-- stale_icon_files picks the cached icon files ("<name>-<hash>.svg") that the
+-- current icon list no longer names. With no list yet, nothing is stale.
+function screen.stale_icon_files(files, icons)
+    local stale = {}
+    if type(icons) ~= "table" or next(icons) == nil then return stale end
+    for _, file in ipairs(files) do
+        local name, hash = file:match("^(.+)%-([^%-]+)%.svg$")
+        if name and icons[name] ~= hash then
+            table.insert(stale, file)
+        end
+    end
+    return stale
 end
 
 return screen

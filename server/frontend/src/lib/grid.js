@@ -73,7 +73,9 @@ function resize(layout, kind, size) {
     for (let c = 0; c < COLS; c++) {
       if (!fits(layout, kind, size, c, r)) continue
       const distance = Math.abs(c - current.col) + Math.abs(r - current.row)
-      if (!best || distance < best.distance) best = { col: c, row: r, distance }
+      if (!best || distance < best.distance) {
+        best = { col: c, row: r, distance }
+      }
     }
   }
   return best && { col: best.col, row: best.row }

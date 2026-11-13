@@ -170,12 +170,48 @@ func New(d Deps) *App {
 		d.Widgets = widget.Default(nil)
 	}
 	cfg := d.Config
-	cfg.Layout = fitCatalog(d.Widgets, cfg.Layout)
+	cfg.Layout = append(fitCatalog(d.Widgets, cfg.Layout), unknownKinds(d.Widgets, cfg.Layout)...)
 	return &App{deps: d, config: cfg}
 }
 
-// fitCatalog keeps one placement per catalog kind, in catalog order: kinds this
-// build does not know are dropped, and kinds the config never saw start hidden.
+// unknownKinds are placements of widgets a newer build added. They are kept and
+// saved back untouched, so going back to that build finds them where they were.
+func unknownKinds(c *widget.Catalog, layout []grid.Placement) []grid.Placement {
+	var out []grid.Placement
+	for _, p := range layout {
+		if _, known := c.Get(p.Kind); !known {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func knownKinds(c *widget.Catalog, layout []grid.Placement) []grid.Placement {
+	out := []grid.Placement{}
+	for _, p := range layout {
+		if _, known := c.Get(p.Kind); known {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// makeWay hides unknown widgets that a change now covers, keeping their spot.
+func makeWay(known, unknown []grid.Placement) []grid.Placement {
+	all := append([]grid.Placement(nil), known...)
+	var out []grid.Placement
+	for _, p := range unknown {
+		if size, visible := p.Visible(); visible && !grid.Fits(all, p.Kind, size, p.Col, p.Row) {
+			p.Size = grid.None
+		}
+		all = append(all, p)
+		out = append(out, p)
+	}
+	return out
+}
+
+// fitCatalog keeps one placement per catalog kind, in catalog order; kinds the
+// config never saw start hidden. Kinds this build does not know are handled by unknownKinds.
 func fitCatalog(c *widget.Catalog, layout []grid.Placement) []grid.Placement {
 	out := []grid.Placement{}
 	for _, k := range c.All() {
@@ -250,7 +286,7 @@ func (a *App) GetState() State {
 	}
 	state.Widgets = WidgetsState{
 		Catalog: a.catalog(),
-		Layout:  cfg.Layout,
+		Layout:  knownKinds(a.deps.Widgets, cfg.Layout),
 		Screen:  widget.BuildScreen(a.deps.Widgets, cfg.Layout, widget.Data{Now: now, Usage: snapshot, Media: state.Media}),
 	}
 	a.mu.Lock()
@@ -617,8 +653,9 @@ func (a *App) updateLayout(kind string, change func(layout []grid.Placement, p *
 	defer a.saving.Unlock()
 
 	a.mu.Lock()
-	layout := append([]grid.Placement(nil), a.config.Layout...)
+	saved := append([]grid.Placement(nil), a.config.Layout...)
 	a.mu.Unlock()
+	layout := knownKinds(a.deps.Widgets, saved)
 
 	index := -1
 	for i, p := range layout {
@@ -632,7 +669,8 @@ func (a *App) updateLayout(kind string, change func(layout []grid.Placement, p *
 	if err := change(layout, &layout[index]); err != nil {
 		return err
 	}
-	if err := a.update(func(c *config.Config) { c.Layout = layout }); err != nil {
+	all := append(layout, makeWay(layout, unknownKinds(a.deps.Widgets, saved))...)
+	if err := a.update(func(c *config.Config) { c.Layout = all }); err != nil {
 		a.deps.Log.Add(applog.System, "could not save the widget layout: %v", err)
 		return errors.New(messageSaveFailed)
 	}

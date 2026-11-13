@@ -9,6 +9,7 @@ local patch = {}
 
 -- The PC's reply to a command often still carries the old state for a moment.
 local HOLD_SECONDS = 4
+patch.HOLD_SECONDS = HOLD_SECONDS
 
 local function copy(value)
     if type(value) ~= "table" then return value end
@@ -119,6 +120,15 @@ function patch.reconcile(pending, incoming, now)
         end
     end
     return shown, pending
+end
+
+-- expire ends a prediction whose hold ran out while no reply came. It returns
+-- the tree to show again (the PC's last one) and nil, or nil and the pending
+-- prediction while it still holds.
+function patch.expire(pending, last, now)
+    if not pending then return nil, nil end
+    if now < pending.expires then return nil, pending end
+    return last, nil
 end
 
 return patch

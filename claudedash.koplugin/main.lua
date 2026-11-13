@@ -370,6 +370,9 @@ function Dashboard:applyScreen(reply)
     if changes.full or #names > 0 then
         write_file(SCREEN_FILE, screen.encode(current))
     end
+    if changes.full then
+        self:removeStaleIcons()
+    end
     self:syncImages()
 
     local refresh
@@ -410,6 +413,25 @@ end
 
 function Dashboard:iconFile(item)
     return string.format("%s/%s-%s.svg", ICON_DIR, item.icon, self.current.icons[item.icon])
+end
+
+function Dashboard:removeStaleIcons()
+    local files = {}
+    local ok = pcall(function()
+        for file in lfs.dir(ICON_DIR) do
+            table.insert(files, file)
+        end
+    end)
+    if not ok then return end
+    for _, file in ipairs(screen.stale_icon_files(files, self.current.icons)) do
+        os.remove(ICON_DIR .. "/" .. file)
+    end
+    -- An icon is never drawn from a file that was just removed.
+    for name, path in pairs(self.icon_files) do
+        if not file_exists(path) then
+            self.icon_files[name] = nil
+        end
+    end
 end
 
 -- Starts downloading every icon and picture the screen needs and does not have.
@@ -608,6 +630,8 @@ function Dashboard:onTap(_arg, ges)
     if before then
         self.shown[kind], self.pending[kind] = patch.stack(self.pending[kind], target.patch, before, os.time())
         self:redraw(kind)
+        -- With the PC off no reply comes to settle the prediction, so it ends on its own.
+        UIManager:scheduleIn(patch.HOLD_SECONDS + 1, function() self:expirePrediction(kind) end)
     end
     net.json(config, "POST", "/action/" .. target.action, COMMAND_TIMEOUT, function(reply, err)
         if self.closed then return end
@@ -619,6 +643,22 @@ function Dashboard:onTap(_arg, ges)
         end
     end, true)
     return true
+end
+
+function Dashboard:expirePrediction(kind)
+    if self.closed then return end
+    local last
+    for _, w in ipairs(self.current and self.current.widgets or {}) do
+        if w.kind == kind then
+            last = w.tree
+        end
+    end
+    local shown, pending = patch.expire(self.pending[kind], last, os.time())
+    self.pending[kind] = pending
+    if not shown then return end
+
+    self.shown[kind] = shown
+    self:redraw(kind)
 end
 
 -- The power button still puts the Kindle to sleep on purpose. Coming back,
