@@ -193,3 +193,11 @@ assert(#found > 0, "the volume bar is drawn")
 for _, bar in ipairs(found) do
     assert(bar.fillcolor == 0, "bar fill must be black")
 end
+
+-- The corner controls sit close together: icon centers at most 100 px apart.
+local corner_buttons = select(3, view.build(state(function() return nil end)))
+local exit, refresh = corner_buttons[1].rect, corner_buttons[2].rect
+assert(exit.x + exit.w == 1236, "exit sits on the right edge")
+assert(refresh.x + refresh.w == exit.x, "refresh sits right next to exit")
+assert((exit.x + exit.w / 2) - (refresh.x + refresh.w / 2) <= 100, "the two icons are close together")
+assert(exit.h >= 100, "still easy to tap")

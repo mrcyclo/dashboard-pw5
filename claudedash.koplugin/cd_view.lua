@@ -26,6 +26,9 @@ local view = {}
 local REFERENCE_WIDTH = 1236
 local PADDING = 24
 local CORNER_SIDE = 150
+-- Tap zones of the exit and refresh icons, kept narrow so the controls sit close together.
+local EXIT_W = 110
+local REFRESH_W = 90
 local BATTERY_W = 220
 local OFFLINE_W = 240
 local CORNER_TEXT = 35
@@ -200,13 +203,14 @@ end
 
 local function corner(layers, state, screen_w, scale)
     local side = math.floor(CORNER_SIDE * scale)
-    local exit = { x = screen_w - side, y = 0, w = side, h = side }
-    local refresh = { x = exit.x - side, y = 0, w = side, h = side }
+    local exit_w, refresh_w = math.floor(EXIT_W * scale), math.floor(REFRESH_W * scale)
+    local exit = { x = screen_w - exit_w, y = 0, w = exit_w, h = side }
+    local refresh = { x = exit.x - refresh_w, y = 0, w = refresh_w, h = side }
     local icon_side = math.floor(side * 0.3)
     local close_icon = icon_widget(state.icon_dir .. "/close.svg", icon_side)
     local refresh_icon = icon_widget(state.icon_dir .. "/refresh.svg", icon_side)
-    table.insert(layers, at(centered_in(close_icon, side, side), exit.x, exit.y))
-    table.insert(layers, at(centered_in(refresh_icon, side, side), refresh.x, refresh.y))
+    table.insert(layers, at(centered_in(close_icon, exit_w, side), exit.x, exit.y))
+    table.insert(layers, at(centered_in(refresh_icon, refresh_w, side), refresh.x, refresh.y))
 
     local right = refresh.x
     if state.battery then
