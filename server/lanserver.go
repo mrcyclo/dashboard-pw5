@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"claudedash/internal/applog"
+	"claudedash/internal/discovery"
 	"claudedash/internal/httpd"
 	"claudedash/internal/usage"
 )
@@ -18,6 +19,8 @@ import (
 type lanServer struct {
 	watch *httpd.ClientWatch
 	log   *applog.Log
+	// beacon tells Kindles on the LAN where to find this server.
+	beacon *discovery.Broadcaster
 
 	mu     sync.Mutex
 	server *http.Server
@@ -51,11 +54,18 @@ func (l *lanServer) bind(port int) error {
 	if previous != nil {
 		previous.Close()
 	}
+	if l.beacon != nil {
+		l.beacon.SetPort(port)
+		l.beacon.Start()
+	}
 	l.log.Add(applog.System, "listening on port %d", port)
 	return nil
 }
 
 func (l *lanServer) close() {
+	if l.beacon != nil {
+		l.beacon.Stop()
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.server != nil {

@@ -107,7 +107,8 @@
     {/if}
     <div class="mt-3 flex items-center justify-between gap-2 border-t border-white/[.07] pt-3">
       <div class="min-w-0">
-        <div class="text-xs text-base-content/60">Address to enter on the Kindle</div>
+        <div class="text-sm">The Kindle app finds this PC by itself</div>
+        <div class="text-xs text-base-content/60">If your network blocks discovery, use this address</div>
         <div class="truncate font-mono text-sm">{app.state.address}</div>
       </div>
       <button class="btn btn-ghost btn-sm btn-square" aria-label="Copy address" onclick={copyAddress}>

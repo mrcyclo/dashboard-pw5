@@ -20,6 +20,7 @@ import (
 	"claudedash/internal/config"
 	"claudedash/internal/credentials"
 	"claudedash/internal/desk"
+	"claudedash/internal/discovery"
 	"claudedash/internal/httpd"
 	"claudedash/internal/media"
 	"claudedash/internal/media/winmedia"
@@ -65,6 +66,8 @@ func main() {
 	}
 	legacyBackground := filepath.Join(dir, "background.txt")
 	migrated := config.MigrateBackground(&cfg, legacyBackground)
+	// A new id has to be saved, or the Kindle would see a different PC after a restart.
+	migrated = config.EnsurePCID(&cfg) || migrated
 
 	tokens := newTokenSource(lg)
 	cachePath := filepath.Join(dir, "usage-cache.json")
@@ -85,7 +88,11 @@ func main() {
 	backdrop.SetView(cfg.Background.FocusX, cfg.Background.FocusY, cfg.Background.Zoom)
 	mediaService := newMediaService(lg)
 	usagePoll := newPoller(service, time.Duration(cfg.CacheSeconds)*time.Second)
-	lan := &lanServer{log: lg}
+	hostname, _ := os.Hostname()
+	lan := &lanServer{
+		log:    lg,
+		beacon: discovery.NewBroadcaster(discovery.NewBeacon(cfg.PCID, hostname, cfg.Port), 2*time.Second, discovery.BroadcastTargets),
+	}
 	sh := &shell{}
 	widgets := widget.Default(mediaService.Do)
 

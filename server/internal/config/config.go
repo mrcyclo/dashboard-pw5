@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -67,6 +68,19 @@ type Config struct {
 	Layout []grid.Placement `json:"layout"`
 	// Per widget kind, the options it offers (such as "align") and their chosen values.
 	WidgetOptions map[string]map[string]string `json:"widget_options,omitempty"`
+	// PCID tells this PC apart from others on the LAN, so the Kindle reconnects to the same one.
+	PCID string `json:"pc_id,omitempty"`
+}
+
+// EnsurePCID gives the config a random id if it has none, and reports whether it did.
+func EnsurePCID(c *Config) bool {
+	if c.PCID != "" {
+		return false
+	}
+	var raw [8]byte
+	rand.Read(raw[:])
+	c.PCID = hex.EncodeToString(raw[:])
+	return true
 }
 
 func Default() Config {

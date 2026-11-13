@@ -340,3 +340,27 @@ func TestWidgetOptionsRoundTrip(t *testing.T) {
 		t.Fatal(string(data))
 	}
 }
+
+func TestEnsurePCID(t *testing.T) {
+	c := Default()
+	if !EnsurePCID(&c) || len(c.PCID) != 16 || strings.Trim(c.PCID, "0123456789abcdef") != "" {
+		t.Fatalf("generated %q", c.PCID)
+	}
+	first := c.PCID
+	if EnsurePCID(&c) || c.PCID != first {
+		t.Fatal("an existing id is kept")
+	}
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := Save(path, c); err != nil {
+		t.Fatal(err)
+	}
+	loaded, _ := Load(path)
+	if loaded.PCID != first {
+		t.Fatalf("round trip %q", loaded.PCID)
+	}
+	other := Default()
+	EnsurePCID(&other)
+	if other.PCID == first {
+		t.Fatal("each PC gets its own id")
+	}
+}
