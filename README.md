@@ -9,7 +9,7 @@ Turns a jailbroken Kindle Paperwhite 5 running KOReader into an e-ink display fo
 License: [MIT](LICENSE).
 
 - `server/`: `claudedash.exe`, a Windows tray application. It serves Claude usage and the current track on port 8377 of the LAN and accepts media commands.
-- `claudedash.koplugin/`: the KOReader plugin. It draws the clock, fetches usage every 5 minutes and the media state every 5 seconds, and has touch controls.
+- `claudedash.koplugin/`: the KOReader plugin. It draws the widgets the PC describes (clock, Claude usage, music), asks the PC for them every 5 seconds, and has touch controls.
 
 ## 1. Run the application on the PC
 
@@ -31,13 +31,34 @@ The window has four pages:
 | Page | Used for |
 |---|---|
 | Overview | Claude usage, token status, the current track, whether the Kindle is connected, and the address to enter on the Kindle |
-| Kindle | Background picture with zoom and position, panel transparency, front light and warmth, periodic and manual full refresh, media polling interval |
+| Layout | Which widgets the Kindle shows, their size and where they sit on the Kindle's grid |
+| Screen | Background picture with zoom and position, panel transparency, front light and warmth, periodic and manual full refresh, polling interval |
 | Settings | Port, usage polling interval, start with Windows, minimize to tray on close |
 | Logs | The latest 500 log lines, filtered by category |
 
-All settings are saved to `config.json` next to the exe. Changes made on the Kindle page reach the Kindle within a few seconds, with no cable.
+All settings are saved to `config.json` next to the exe. Changes made on the Layout and Screen pages reach the Kindle within a few seconds, with no cable.
 
 The usage polling interval cannot go below 5 minutes: polling every 2 minutes got HTTP 429 (rate limited) from Claude after about an hour. On a 429, `claudedash` stops asking for 15 minutes, or for as long as Claude says. The last good reading is saved to `usage-cache.json`, so a restart still has numbers to show.
+
+### Widgets
+
+The Kindle screen is a grid of 6 columns by 8 rows. The top right corner (row 1, columns 4 to 6) is kept for the battery, refresh and exit buttons. On the Layout page, each widget has a row of choices: `None` hides it, the others are the sizes it can be drawn at, in columns × rows. Drag a widget in the preview to move it; it snaps to the grid and never overlaps another widget. A hidden widget remembers its spot.
+
+| Widget | Sizes |
+|---|---|
+| Clock | 3×1, 6×1 |
+| Claude usage | 6×2, 3×3 (at most four limits) |
+| Music | 6×2, 6×1 (without the volume row) |
+
+The PC describes every widget as a small tree of components (text, bars, icons, pictures, buttons, a clock and a countdown) and the Kindle only draws them. The clock, the countdowns and the drop to 0% at a reset are worked out on the Kindle, so they stay right while the PC is off; the rest shows its last state, and the corner says `PC offline`. The Kindle keeps the last screen on disk and shows it again after a restart.
+
+### Adding a widget
+
+1. Write a type implementing `widget.Kind` in `server/internal/widget/` (see `clock.go`): a name, a label, a lucide icon name for the window, its sizes, and `Build(size, data)` returning the tree.
+2. Add it to `widget.Default` in `catalog.go`. It appears on the Layout page, hidden until chosen.
+3. Icons it needs go in `server/internal/widget/icons/` as SVG. Buttons name an action `<kind>.<action>`, served by implementing `widget.Actor`.
+
+No change to the plugin is needed, and nothing has to be copied to the Kindle. The layout rules both sides follow are at the top of `claudedash.koplugin/cd_tree.lua`; `server/internal/widget/testdata/tree_fixtures.json` checks the Kindle and the window against each other.
 
 ### About the token
 
@@ -71,6 +92,9 @@ The Kindle reaches the PC by IP address, so give the PC a DHCP reservation on yo
 
 | Path | Purpose |
 |---|---|
+| `GET /screen.json?battery=N` | Every visible widget with its place and tree, icon hashes, and the background, settings and refresh hashes |
+| `POST /action/<name>` | Runs a widget button's action, such as `media.next`, and answers like `/screen.json` |
+| `GET /icons/<name>.svg` | An icon named by a tree |
 | `GET /media.json` | Title, artist, application, playing or paused, volume, cover art hash |
 | `GET /media/art.png` | Grayscale cover art, fitted to 400 x 400 |
 | `POST /media/<command>` | `play-pause`, `next`, `previous`, `volume-up`, `volume-down` |
@@ -79,41 +103,42 @@ Volume is the master volume of the default output device and changes by 5 per ta
 
 ### Background picture
 
-On the Kindle page of the window, choose a JPG or PNG picture. The PC crops it to fill the Kindle screen without stretching it and converts it to grayscale. Drag the picture in the preview to choose which part is kept, and use the zoom slider or the mouse wheel (100% to 500%) to show only part of it. The Kindle downloads the result within a few seconds and keeps it, so the background stays when the PC is off.
+On the Screen page of the window, choose a JPG or PNG picture. The PC crops it to fill the Kindle screen without stretching it and converts it to grayscale. Drag the picture in the preview to choose which part is kept, and use the zoom slider or the mouse wheel (100% to 500%) to show only part of it. The Kindle downloads the result within a few seconds and keeps it, so the background stays when the PC is off.
 
-The dashboard puts its content in two panels at the top and bottom of the screen and leaves the middle free for the picture. The panels lighten the picture behind the text; the `Panel transparency` slider sets how much. With a background picture, e-ink updates flash more easily than on a white background.
+Each widget sits on its own panel that lightens the picture behind its text; the `Panel transparency` slider sets how much. With a background picture, e-ink updates flash more easily than on a white background.
 
 ### Light and refresh
 
-The Kindle page also sets the front light and its warmth, in the Paperwhite 5's own levels 0 to 24. Until you move a slider, the Kindle keeps its own setting. `Refresh screen now` asks the Kindle for one flashing repaint of the whole screen, which clears e-ink ghosting.
+The Screen page also sets the front light and its warmth, in the Paperwhite 5's own levels 0 to 24. Until you move a slider, the Kindle keeps its own setting. `Refresh screen now` asks the Kindle for one flashing repaint of the whole screen, which clears e-ink ghosting.
 
 ## 2. Install the plugin on the Kindle
 
 1. Create `claudedash.koplugin/cd_config_local.lua` containing `return { host = "IP of your PC" }`, using the address shown on the Overview page (add `port = ...` if you changed the port). This file overrides the sample values in `cd_config.lua` and is not tracked by git.
 2. Connect the Kindle to the PC with a USB cable.
-3. Copy the whole `claudedash.koplugin` folder to `koreader/plugins/` on the Kindle, including `icons/`. The `spec/` folder is only for tests and can be left out.
+3. Copy the whole `claudedash.koplugin` folder to `koreader/plugins/` on the Kindle, including `icons/`. When updating from a version before widgets, delete the old `cd_layout.lua` there. The `spec/` folder is only for tests and can be left out.
 4. Unplug the cable and restart KOReader.
 5. In KOReader: top menu, tools (the wrench icon), `Claude Dashboard`. If it is missing, check that the plugin is enabled in the plugin manager.
 6. Tap `✕` in the top right corner to leave the dashboard. The circular arrow to its left repaints the whole screen once.
 
-To avoid black flashes, each update repaints only the band of the screen that changed (the clock, the Claude section, or the media section with its buttons).
+To avoid black flashes, each update repaints only the widgets that changed.
 
 Keep the Kindle on a charger when it is used as a dashboard: Wi-Fi and an always-on screen use far more battery than reading.
 
 ## 3. Checklist on the Kindle
 
 1. `Claude Dashboard` is in the KOReader menu and opens full screen in portrait.
-2. The time and date are right. The top right corner shows the battery icon and percentage.
-3. `Claude · weekly limits` has the rows `All models` and `Fable only`, matching the tray tooltip on the PC.
-4. The media section shows the title, artist, application and cover art of what is playing on the PC.
-5. Every button works: previous, play or pause, next, volume down and up. The volume number follows.
-6. Change the track on the PC: the Kindle follows within about 5 seconds.
-7. Stop playback entirely on the PC: the media section says `Nothing playing` and the three playback buttons fade.
+2. The top right corner shows the battery, refresh and exit buttons, outside any panel.
+3. The clock, Claude usage and music widgets sit where the Layout page shows them, each on its own panel.
+4. `Claude · weekly limits` has the rows `All models` and `Fable only`, matching the tray tooltip on the PC.
+5. The music widget shows the title, artist, application and cover art of what is playing on the PC.
+6. Every button works: previous, play or pause, next, volume down and up. Play or pause and the volume number change at once.
+7. On the PC, move a widget, change a size and hide one: the Kindle follows within a few seconds.
 8. Wait 2 minutes: the clock advances on the minute without heavy ghosting.
 9. Wait past the Kindle's sleep timeout: the screen does not switch to the screensaver.
-10. Quit `claudedash.exe`: after about 10 seconds the media heading shows that the connection is lost, the clock keeps running and the interface does not stutter.
-11. Tap `✕`: the dashboard closes and the Kindle goes back to sleeping normally.
-12. If KOReader reports an error, look at `koreader/crash.log`.
+10. Quit `claudedash.exe`: within about 10 seconds the corner says `PC offline`, the clock and countdowns keep running, and the interface does not stutter. Start it again: the mark goes away by itself.
+11. Close and reopen the dashboard with the PC off: the last screen comes back.
+12. Tap `✕`: the dashboard closes and the Kindle goes back to sleeping normally.
+13. If KOReader reports an error, look at `koreader/crash.log`.
 
 ## When the dashboard seems frozen
 

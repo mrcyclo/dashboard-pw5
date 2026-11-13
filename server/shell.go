@@ -14,7 +14,7 @@ import (
 	"claudedash/internal/usage"
 )
 
-// Development aid: set to "#kindle", "#settings" or "#logs" to open the window on that page.
+// Development aid: set to "#layout", "#screen", "#settings" or "#logs" to open the window on that page.
 const startPageEnv = "CLAUDEDASH_START_PAGE"
 
 // shell is the tray icon and the window around the desk service.

@@ -4,13 +4,15 @@
   import { app, init } from './lib/store.svelte.js'
   import TopBar from './lib/TopBar.svelte'
   import Overview from './pages/Overview.svelte'
-  import Kindle from './pages/Kindle.svelte'
+  import Layout from './pages/Layout.svelte'
+  import Screen from './pages/Screen.svelte'
   import Settings from './pages/Settings.svelte'
   import Logs from './pages/Logs.svelte'
 
   const pages = [
     { id: 'overview', label: 'Overview', component: Overview },
-    { id: 'kindle', label: 'Kindle', component: Kindle },
+    { id: 'layout', label: 'Layout', component: Layout },
+    { id: 'screen', label: 'Screen', component: Screen },
     { id: 'settings', label: 'Settings', component: Settings },
     { id: 'logs', label: 'Logs', component: Logs },
   ]

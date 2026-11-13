@@ -9,7 +9,7 @@
   } from '../../bindings/claudedash/internal/desk/app'
   import { app, call } from '../lib/store.svelte.js'
   import { MAX_ZOOM, MIN_ZOOM } from '../lib/format.js'
-  import KindlePreview from '../lib/KindlePreview.svelte'
+  import KindleScreen from '../lib/KindleScreen.svelte'
 
   const refreshOptions = [
     { value: 0, label: 'Off' },
@@ -90,13 +90,13 @@
 </script>
 
 <header class="mb-5">
-  <h1 class="text-2xl font-semibold">Kindle</h1>
-  <p class="text-sm text-base-content/60">Background and how the dashboard looks. The Kindle picks up changes within a few seconds</p>
+  <h1 class="text-2xl font-semibold">Screen</h1>
+  <p class="text-sm text-base-content/60">Background, light and refresh. The Kindle picks up changes within a few seconds</p>
 </header>
 
 <div class="flex min-h-0 flex-1 gap-5">
   <div class="flex flex-col items-center gap-2">
-    <KindlePreview
+    <KindleScreen
       focus={view}
       zoom={view.zoom}
       {lighten}
