@@ -8,7 +8,9 @@ Turns a jailbroken Kindle Paperwhite 5 into an e-ink display for the time, the d
 
 License: [MIT](LICENSE).
 
-- `server/`: `claudedash.exe`, a Windows tray application. It describes the Kindle's widgets on port 8377 of the LAN, runs their buttons, and announces itself on the LAN so the Kindle finds it. `server/cmd/claudedash-kindle` is the Kindle app.
+- `src/`: the source of both apps, one Go module.
+  - The PC app, `claudedash.exe`, is a Windows tray application (the module root, with its window in `src/frontend/`). It describes the Kindle's widgets on port 8377 of the LAN, runs their buttons, and announces itself on the LAN so the Kindle finds it.
+  - The Kindle app is `src/cmd/claudedash-kindle`, with its parts in `src/internal/kindle/`. It shares only the LAN announcement (`src/internal/discovery`) with the PC app.
 - `kindle/package/`: the files installed on the Kindle next to the app: the launcher, the fonts and a package manifest.
 
 ## 1. Run the application on the PC
@@ -16,11 +18,11 @@ License: [MIT](LICENSE).
 `claudedash.exe` is a Wails application: the core is written in Go and the window in Svelte. Building it needs Go, Node and `wails3`:
 
 ```bash
-cd server
+cd src
 ./build.sh
 ```
 
-This generates the bindings, builds the interface and produces `server/bin/claudedash.exe`. Run that file: an icon appears in the system tray and the window opens.
+This generates the bindings, builds the interface and produces `src/bin/claudedash.exe`. Run that file: an icon appears in the system tray and the window opens.
 
 - Click the tray icon to open the window. Hover over it for a quick reading, for example `Claude: week 28%, Fable 6%`.
 - Right-click it for `Open Claude Dashboard`, `Refresh usage` and `Quit`.
@@ -54,15 +56,15 @@ The PC describes every widget as a small tree of components (text, bars, icons, 
 
 ### Adding a widget
 
-1. Write a type implementing `widget.Kind` in `server/internal/widget/` (see `clock.go`): a name, a label, a lucide icon name for the window, its sizes, and `Build(size, data)` returning the tree.
+1. Write a type implementing `widget.Kind` in `src/internal/widget/` (see `clock.go`): a name, a label, a lucide icon name for the window, its sizes, and `Build(size, data)` returning the tree.
 2. Add it to `widget.Default` in `catalog.go`. It appears on the Layout page, hidden until chosen.
-3. Icons it needs go in `server/internal/widget/icons/` as SVG. Buttons name an action `<kind>.<action>`, served by implementing `widget.Actor`.
+3. Icons it needs go in `src/internal/widget/icons/` as SVG. Buttons name an action `<kind>.<action>`, served by implementing `widget.Actor`.
 
-Nothing has to change or be copied on the Kindle. The layout rules both sides follow are at the top of `server/internal/tree/layout.go`; `server/internal/widget/testdata/tree_fixtures.json` checks the Kindle and the window against each other.
+Nothing has to change or be copied on the Kindle. The layout rules both sides follow are at the top of `src/internal/tree/layout.go`; `src/internal/widget/testdata/tree_fixtures.json` checks the Kindle and the window against each other.
 
 ### About the token
 
-The server reads the token from `%USERPROFILE%\.claude\.credentials.json`, the sign-in file of Claude Code (the desktop app uses the same file for its Code tab). The access token lives for about 8 hours and the desktop app does not renew it regularly, so when it is about to expire `claudedash` **renews it itself** with the refresh token in the file and writes the new pair back:
+The PC app reads the token from `%USERPROFILE%\.claude\.credentials.json`, the sign-in file of Claude Code (the desktop app uses the same file for its Code tab). The access token lives for about 8 hours and the desktop app does not renew it regularly, so when it is about to expire `claudedash` **renews it itself** with the refresh token in the file and writes the new pair back:
 
 - Only the token fields and their expiry are changed; every other field is kept as it was.
 - The file is written to a temporary file and renamed, so a half-written file is never left behind.
@@ -118,7 +120,7 @@ The Kindle needs a jailbreak with the hotfix that installs FBInk at `/mnt/us/lib
 1. Build the Kindle app:
 
    ```bash
-   cd server
+   cd src
    ./build-kindle.sh
    ```
 
@@ -158,7 +160,7 @@ Keep the Kindle on a charger when it is used as a dashboard: Wi-Fi and an always
 ## Development
 
 ```bash
-cd server
+cd src
 go test -race ./...
 ```
 

@@ -185,7 +185,7 @@
       {/each}
 
       <div class="pointer-events-none absolute top-0 right-0 flex h-[150px] items-center text-[35px] text-[#111]">
-        <!-- Widths match the tap zones in server/internal/kindle/render/render.go. -->
+        <!-- Widths match the tap zones in src/internal/kindle/render/render.go. -->
         {#if battery !== undefined && battery !== null}<span>{battery}%</span>{/if}
         <span class="grid w-[90px] place-items-center"><RotateCw size={45} strokeWidth={2.5} /></span>
         <span class="grid w-[110px] place-items-center"><X size={50} strokeWidth={2.5} /></span>

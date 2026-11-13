@@ -1,6 +1,6 @@
-// Lays out a widget's component tree exactly like server/internal/tree/layout.go,
+// Lays out a widget's component tree exactly like src/internal/tree/layout.go,
 // so the window's preview places everything where the Kindle does. Both are
-// checked against server/internal/widget/testdata/tree_fixtures.json; the rules
+// checked against src/internal/widget/testdata/tree_fixtures.json; the rules
 // are written out at the top of layout.go.
 import { countdownText, dateText, timeText } from './format.js'
 

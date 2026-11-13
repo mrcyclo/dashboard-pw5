@@ -1,7 +1,7 @@
 // Package tree lays out a widget's component tree, as sent by the PC in
 // /screen.json, for the Kindle app. The window's preview does the same in
-// server/frontend/src/lib/tree.js, and both are checked against
-// server/internal/widget/testdata/tree_fixtures.json.
+// src/frontend/src/lib/tree.js, and both are checked against
+// src/internal/widget/testdata/tree_fixtures.json.
 //
 // Rules:
 //  1. col stacks its children; they get its width when align is "stretch"

@@ -1,13 +1,12 @@
 # Build output
-server/bin/
-server/bin-ui/
-server/*.exe
-server/*.syso
-server/build/windows/icon.ico
-server/build/kindlecover.png
-server/frontend/node_modules/
-server/frontend/dist/
-server/frontend/bindings/
+src/bin/
+src/*.exe
+src/*.syso
+src/build/windows/icon.ico
+src/build/kindlecover.png
+src/frontend/node_modules/
+src/frontend/dist/
+src/frontend/bindings/
 
 # Runtime data written next to the exe
 *.log
@@ -22,7 +21,7 @@ docs/shots/
 docs/superpowers/
 
 # Go test binaries built outside the temp folder the antivirus watches
-server/.gotest/
+src/.gotest/
 
 # Kindle package build output
 kindle/dist/

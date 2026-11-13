@@ -1,4 +1,4 @@
-// The Kindle's widget grid, mirroring server/internal/grid/grid.go. The Go side
+// The Kindle's widget grid, mirroring src/internal/grid/grid.go. The Go side
 // is the authority; this copy lets the window disable choices that cannot work
 // and snap a dragged widget before asking.
 
