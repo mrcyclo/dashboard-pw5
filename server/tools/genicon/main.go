@@ -12,7 +12,6 @@ import (
 func main() {
 	files := map[string][]byte{
 		filepath.Join("build", "windows", "icon.ico"): tray.Icon(),
-		filepath.Join("build", "appicon.png"):         tray.IconPNG(512),
 	}
 	for path, data := range files {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

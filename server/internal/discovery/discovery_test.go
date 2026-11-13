@@ -65,8 +65,8 @@ func TestChooserTakesTheFirstWhenNoneRemembered(t *testing.T) {
 	c.Hear(seen("bbbbbbbbbbbbbbbb", "10.0.0.2", now))
 	c.Hear(seen("cccccccccccccccc", "10.0.0.3", now))
 	cur, ok := c.Current(now)
-	if !ok || cur.ID != "bbbbbbbbbbbbbbbb" || c.Remembered() != "bbbbbbbbbbbbbbbb" {
-		t.Fatalf("%+v %v %s", cur, ok, c.Remembered())
+	if !ok || cur.ID != "bbbbbbbbbbbbbbbb" || c.remembered != "bbbbbbbbbbbbbbbb" {
+		t.Fatalf("%+v %v %s", cur, ok, c.remembered)
 	}
 }
 
@@ -83,7 +83,7 @@ func TestOthersAndChoose(t *testing.T) {
 		t.Fatal("a PC silent for 20 s is not current")
 	}
 	c.Choose("bbbbbbbbbbbbbbbb")
-	if cur, ok := c.Current(now); !ok || cur.ID != "bbbbbbbbbbbbbbbb" || c.Remembered() != "bbbbbbbbbbbbbbbb" {
+	if cur, ok := c.Current(now); !ok || cur.ID != "bbbbbbbbbbbbbbbb" || c.remembered != "bbbbbbbbbbbbbbbb" {
 		t.Fatal("choose switches")
 	}
 }

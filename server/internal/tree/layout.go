@@ -35,10 +35,6 @@ type Box struct {
 	Textual bool
 }
 
-func (b Box) In(r image.Rectangle) bool {
-	return b.X >= r.Min.X && b.Y >= r.Min.Y && b.X+b.W <= r.Max.X && b.Y+b.H <= r.Max.Y
-}
-
 // Measure gives a text's width in pixels.
 type Measure func(text string, size int, bold bool) int
 

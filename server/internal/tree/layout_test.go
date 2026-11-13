@@ -33,7 +33,7 @@ func TestFixtures(t *testing.T) {
 		box := image.Rect(0, 0, f.Box["w"], f.Box["h"])
 		var got []Box
 		for _, b := range Layout(f.Tree, box, fakeMeasure, time.Unix(0, 0)) {
-			if !b.In(box) {
+			if !inside(b, box) {
 				t.Errorf("%s: box %+v leaves the widget", f.Name, b)
 			}
 			if _, ok := b.Node["id"]; ok {
@@ -141,4 +141,8 @@ func TestFind(t *testing.T) {
 	if Find(root, "pp")["size"] != 10.0 || Find(root, "nope") != nil {
 		t.Fatal("find")
 	}
+}
+
+func inside(b Box, r image.Rectangle) bool {
+	return b.X >= r.Min.X && b.Y >= r.Min.Y && b.X+b.W <= r.Max.X && b.Y+b.H <= r.Max.Y
 }

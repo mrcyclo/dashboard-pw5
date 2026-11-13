@@ -151,3 +151,10 @@ func TestWatchSanitizesLoggedPath(t *testing.T) {
 		t.Fatalf("an oversized path reached the log: %d bytes", len(line))
 	}
 }
+
+func trackedClients(h http.Handler) int {
+	c := h.(*ClientWatch)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.clients)
+}

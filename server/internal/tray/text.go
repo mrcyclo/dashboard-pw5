@@ -3,7 +3,6 @@ package tray
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"claudedash/internal/usage"
 )
@@ -23,14 +22,4 @@ func Tooltip(s usage.Snapshot) string {
 		return "Claude Dashboard"
 	}
 	return "Claude: " + strings.Join(parts, ", ")
-}
-
-func StatusLine(s usage.Snapshot, loc *time.Location) string {
-	if s.Stale && s.Error != "" {
-		return "Error: " + s.Error
-	}
-	if s.FetchedAt == 0 {
-		return "No data yet"
-	}
-	return "Updated at " + time.Unix(s.FetchedAt, 0).In(loc).Format("15:04")
 }

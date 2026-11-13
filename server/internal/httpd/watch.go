@@ -103,10 +103,3 @@ func printable(path string) string {
 	}
 	return string(clean)
 }
-
-func trackedClients(h http.Handler) int {
-	c := h.(*ClientWatch)
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return len(c.clients)
-}

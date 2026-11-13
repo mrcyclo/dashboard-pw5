@@ -18,13 +18,13 @@ func useTestValue(t *testing.T) {
 
 func TestEnableDisableRoundTrip(t *testing.T) {
 	useTestValue(t)
-	if on, err := Enabled(); err != nil || on {
+	if _, on, err := Command(); err != nil || on {
 		t.Fatalf("before: %v %v", on, err)
 	}
 	if err := Enable(`C:\a b\x.exe`); err != nil {
 		t.Fatal(err)
 	}
-	if on, err := Enabled(); err != nil || !on {
+	if _, on, err := Command(); err != nil || !on {
 		t.Fatalf("after enable: %v %v", on, err)
 	}
 	k, err := registry.OpenKey(registry.CURRENT_USER, runKey, registry.QUERY_VALUE)
@@ -39,7 +39,7 @@ func TestEnableDisableRoundTrip(t *testing.T) {
 	if err := Disable(); err != nil {
 		t.Fatal(err)
 	}
-	if on, err := Enabled(); err != nil || on {
+	if _, on, err := Command(); err != nil || on {
 		t.Fatalf("after disable: %v %v", on, err)
 	}
 }

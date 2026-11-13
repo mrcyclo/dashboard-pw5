@@ -4,7 +4,6 @@ server/bin-ui/
 server/*.exe
 server/*.syso
 server/build/windows/icon.ico
-server/build/appicon.png
 server/build/kindlecover.png
 server/frontend/node_modules/
 server/frontend/dist/

@@ -246,7 +246,3 @@ func (c *Chooser) Others(now time.Time) []Seen {
 func (c *Chooser) Choose(id string) {
 	c.remembered = id
 }
-
-func (c *Chooser) Remembered() string {
-	return c.remembered
-}
