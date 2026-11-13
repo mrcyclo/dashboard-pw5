@@ -11,7 +11,8 @@ Rules:
    takes its share of the leftover width; others keep their own width.
    Children of a row are aligned vertically by align ("center" default),
    except cols and rules, which take the row's full height.
-3. Unknown kinds are skipped. Every box is clipped to the root box.
+3. Unknown kinds are skipped. Every box is clipped to the root box, and a
+   text line too short to show whole is left out.
 4. x and y are floored, then w and h.
 ]]
 local format = require("cd_format")
@@ -219,6 +220,8 @@ local function emit(node, x, y, w, h, ctx)
     local left, top = math.max(x0, box.x), math.max(y0, box.y)
     local right, bottom = math.min(x0 + w0, box.x + box.w), math.min(y0 + h0, box.y + box.h)
     if right <= left or bottom <= top then return end
+    -- A line of text cannot be cut: KOReader would draw all of it, past the widget.
+    if TEXTUAL[node.kind] and bottom - top < text_height(num(node.size, 20)) then return end
 
     local out = { node = node, x = left, y = top, w = right - left, h = bottom - top }
     if TEXTUAL[node.kind] then

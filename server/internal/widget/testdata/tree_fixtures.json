@@ -106,5 +106,17 @@
       {"id": "artist", "x": 0, "y": 26, "w": 250, "h": 13},
       {"id": "pp", "x": 260, "y": 10, "w": 40, "h": 40}
     ]
+  },
+  {
+    "name": "a text line that does not fit vertically is left out, not drawn cut",
+    "box": {"w": 100, "h": 30},
+    "tree": {"kind": "col", "gap": 0, "children": [
+      {"kind": "text", "id": "a", "text": "A", "size": 20},
+      {"kind": "text", "id": "b", "text": "B", "size": 20},
+      {"kind": "bar", "id": "c", "percent": 10, "height": 8}
+    ]},
+    "expect": [
+      {"id": "a", "x": 0, "y": 0, "w": 100, "h": 26}
+    ]
   }
 ]

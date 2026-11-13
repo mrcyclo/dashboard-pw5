@@ -131,6 +131,7 @@ function emit(node, x, y, w, h, ctx) {
   const right = Math.min(x0 + Math.floor(w), box.x + box.w)
   const bottom = Math.min(y0 + Math.floor(h), box.y + box.h)
   if (right <= left || bottom <= top) return
+  if (TEXTUAL.has(node.kind) && bottom - top < Math.ceil(num(node.size, 20) * LINE_HEIGHT)) return
 
   const out = { node, x: left, y: top, w: right - left, h: bottom - top }
   if (TEXTUAL.has(node.kind)) out.text = textOf(node, ctx)
