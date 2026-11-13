@@ -142,7 +142,7 @@ func (claudeKind) Build(size string, d Data) Node {
 
 	shared := sharedReset(list)
 	// Equal growing spaces around each limit spread them over the whole height.
-	rows := []Node{header(d.Usage, shared, stale), Space(8), Rule()}
+	rows := []Node{header("Claude", shared, stale), Space(8), Rule()}
 	for _, l := range list {
 		rows = append(rows, Space(0).Grow(1), tallRow(l, shared == 0))
 	}
@@ -163,16 +163,16 @@ func wide(s usage.Snapshot, list []limit, stale Node) Node {
 	for _, l := range list {
 		cells = append(cells, wideCell(l, shared == 0, size))
 	}
-	return Col(6, header(s, shared, stale), Rule(), Row(16, cells...).Align("start"))
-}
-
-// header is the title, the stale mark when the numbers are old, and the reset
-// time every limit shares. The title gives way first when the line is short.
-func header(s usage.Snapshot, shared int64, stale Node) Node {
 	title := "Claude · weekly limits"
 	if s.FiveHour != nil {
 		title = "Claude · usage limits"
 	}
+	return Col(6, header(title, shared, stale), Rule(), Row(16, cells...).Align("start"))
+}
+
+// header is the title, the stale mark when the numbers are old, and the reset
+// time every limit shares. The title gives way first when the line is short.
+func header(title string, shared int64, stale Node) Node {
 	line := []Node{Text(title, claudeTitleSize).Bold().Grow(1)}
 	if stale != nil {
 		line = append(line, stale)

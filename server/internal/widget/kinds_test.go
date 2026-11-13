@@ -434,7 +434,8 @@ func TestClaudeTallHeaderMatchesWide(t *testing.T) {
 	}
 	tree := claudeKind{}.Build("3x2", Data{Now: testNow, Usage: snap})
 	got := texts(tree)
-	if len(got) == 0 || got[0] != "Claude · weekly limits" {
+	// Half width has no room for the long title next to the reset time.
+	if len(got) == 0 || got[0] != "Claude" {
 		t.Fatalf("got %q", got)
 	}
 	countdowns := byKind(tree, "countdown")
