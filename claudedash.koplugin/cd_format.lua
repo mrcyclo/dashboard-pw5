@@ -75,11 +75,9 @@ function format.percent(window, now)
     return window.used_percent
 end
 
-function format.refresh_text(window, now, date_fn)
-    window = window_or_nil(window)
-    if not window then return nil end
-
-    local resets_at = number_or_nil(window.resets_at)
+-- "resets in 2h 14m" until the unix time to, or nil once it has passed.
+function format.countdown_text(to, now, date_fn)
+    local resets_at = number_or_nil(to)
     if not resets_at or resets_at <= now then return nil end
 
     local minutes = math.ceil((resets_at - now) / 60)
@@ -109,7 +107,7 @@ end
 
 local function row(label, window, now, date_fn)
     local percent = format.percent(window, now)
-    local refresh = format.refresh_text(window, now, date_fn)
+    local refresh = format.countdown_text(window.resets_at, now, date_fn)
     return {
         label = label,
         percent = percent,
