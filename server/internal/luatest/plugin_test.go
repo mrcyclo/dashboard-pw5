@@ -73,6 +73,10 @@ func TestTreeSpec(t *testing.T) {
 	})
 }
 
+func TestPatchSpec(t *testing.T) {
+	runSpec(t, "patch_spec.lua")
+}
+
 func TestLayoutSpec(t *testing.T) {
 	runSpec(t, "layout_spec.lua")
 }
