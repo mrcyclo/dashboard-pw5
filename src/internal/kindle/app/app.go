@@ -136,6 +136,8 @@ type loop struct {
 
 	results chan fetched
 	expired chan string
+	// released names the widget whose pressed button is drawn normally again.
+	released chan string
 }
 
 func (l *loop) logf(format string, args ...any) {
@@ -175,6 +177,7 @@ func newLoop(c Config) *loop {
 		assets:     newAssetStore(filepath.Join(c.Dir, "cache", "icons")),
 		results:    make(chan fetched, 16),
 		expired:    make(chan string, 8),
+		released:   make(chan string, 8),
 		failedShow: map[string]bool{},
 	}
 }
@@ -212,6 +215,8 @@ func (l *loop) run(ctx context.Context) error {
 			l.result(r)
 		case kind := <-l.expired:
 			l.expire(kind)
+		case kind := <-l.released:
+			l.draw([]string{kind}, false, false)
 		case <-minute.C:
 			l.tick()
 			minute.Reset(untilNextMinute(c.Now()))
@@ -670,6 +675,7 @@ func (l *loop) tap(p image.Point, poll *time.Timer) bool {
 			kind := b.Kind
 			time.AfterFunc(patch.Hold+100*time.Millisecond, func() { l.expired <- kind })
 		}
+		l.press(b)
 		l.actions++
 		base, action := l.base, b.Action
 		go func() {
@@ -682,6 +688,26 @@ func (l *loop) tap(p image.Point, poll *time.Timer) bool {
 		return false
 	}
 	return false
+}
+
+// pressDuration is how long a tapped button stays inverted.
+const pressDuration = 300 * time.Millisecond
+
+// press shows a button inverted, the way the Kindle marks a tap, until its
+// widget is drawn again shortly after.
+func (l *loop) press(b render.Button) {
+	r := b.Rect.Intersect(l.img.Bounds())
+	for y := r.Min.Y; y < r.Max.Y; y++ {
+		row := l.img.Pix[y*l.img.Stride:]
+		for x := r.Min.X; x < r.Max.X; x++ {
+			row[x] = 255 - row[x]
+		}
+	}
+	if err := l.c.Display.Show(l.img, r, false); err != nil {
+		l.logf("display press: %v", err)
+	}
+	kind := b.Kind
+	time.AfterFunc(pressDuration, func() { l.released <- kind })
 }
 
 func (l *loop) switchPC(poll *time.Timer) {

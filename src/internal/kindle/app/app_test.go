@@ -618,3 +618,31 @@ func TestAButtonPictureCountsAsUsed(t *testing.T) {
 		t.Fatal("a new app icon must redraw its widget once it arrives")
 	}
 }
+
+// A tapped button flashes inverted at once, so the user sees the tap landed,
+// and the widget is drawn normally again shortly after.
+func TestTappedButtonShowsItWasPressed(t *testing.T) {
+	p := newPC(t)
+	d := &fakeDisplay{}
+	l := newLoop(Config{Dir: t.TempDir(), Fonts: fonts(t), Display: d, Runner: &fakeRunner{}, Now: time.Now, HTTP: &http.Client{Timeout: time.Second}})
+	l.apply(p.screen())
+	l.draw(nil, true, false)
+	l.base = p.server.URL
+	b := l.buttons[0]
+	before := l.img.GrayAt(b.Rect.Min.X+b.Rect.Dx()/2, b.Rect.Min.Y+b.Rect.Dy()/2).Y
+	l.tap(b.Rect.Min.Add(image.Pt(b.Rect.Dx()/2, b.Rect.Dy()/2)), time.NewTimer(time.Hour))
+	if got := lastShown(d); got != b.Rect {
+		t.Fatalf("last shown %v, want the button %v", got, b.Rect)
+	}
+	if after := l.img.GrayAt(b.Rect.Min.X+b.Rect.Dx()/2, b.Rect.Min.Y+b.Rect.Dy()/2).Y; after != 255-before {
+		t.Fatalf("pressed pixel %d, was %d", after, before)
+	}
+	select {
+	case kind := <-l.released:
+		if kind != b.Kind {
+			t.Fatalf("released %q", kind)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the button must be drawn normally again")
+	}
+}
