@@ -275,11 +275,11 @@ func TestBatteryIconHoldsTheLevel(t *testing.T) {
 	full, c := draw(100)
 	empty, _ := draw(5)
 	icon := image.Rect(c.Region.Min.X, 0, c.Refresh.Min.X, cornerH)
-	if icon.Dx() < 80 || icon.Dx() > 130 {
+	if icon.Dx() < 60 || icon.Dx() > 100 {
 		t.Fatalf("one battery with the number inside, nothing beside it: %v", icon)
 	}
 	// The light gray shade over most of the inside adds about 50 per pixel.
-	if ink(full, icon) < ink(empty, icon)+100000 {
+	if ink(full, icon) < ink(empty, icon)+60000 {
 		t.Fatalf("a full battery is shaded: %d vs %d", ink(full, icon), ink(empty, icon))
 	}
 	blank := canvas()

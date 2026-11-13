@@ -29,9 +29,9 @@ const (
 	refreshW    = 90
 	cornerText  = 35
 	cornerIcon  = 45
-	batteryW    = 100
-	batteryH    = 48
-	batteryText = 30
+	batteryW    = 75
+	batteryH    = 34
+	batteryText = 23
 )
 
 var (
@@ -301,7 +301,7 @@ func (p painter) button(r image.Rectangle, n tree.Node) {
 // battery draws an outlined battery with its tip on the right, shaded light gray
 // up to level percent, with the level written in the middle.
 func (p painter) battery(r image.Rectangle, level int) {
-	const stroke, tipW, tipH, inset = 3, 6, 16, 6
+	const stroke, tipW, tipH, inset = 3, 5, 12, 5
 	level = min(max(level, 0), 100)
 	body := image.Rect(r.Min.X, r.Min.Y, r.Max.X-tipW, r.Max.Y)
 	p.fill(body, black)
