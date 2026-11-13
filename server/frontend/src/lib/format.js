@@ -2,6 +2,7 @@
 // claudedash.koplugin/cd_format.lua so the window and the Kindle say the same thing.
 
 const WEEKDAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const MINUTES_PER_DAY = 24 * 60
 // The API reports limits that reset together a second or so apart.
 const SAME_MOMENT_SECONDS = 120
@@ -9,7 +10,14 @@ const SAME_MOMENT_SECONDS = 120
 // Breaks an epoch into local clock parts. Tests pass their own to stay independent of the time zone.
 function localClock(epochSeconds) {
   const date = new Date(epochSeconds * 1000)
-  return { weekday: date.getDay(), hour: date.getHours(), minute: date.getMinutes() }
+  return {
+    weekday: date.getDay(),
+    hour: date.getHours(),
+    minute: date.getMinutes(),
+    day: date.getDate(),
+    month: date.getMonth() + 1,
+    year: date.getFullYear(),
+  }
 }
 
 function pad(value) {
@@ -22,6 +30,12 @@ function isWindow(value) {
 
 function resetsAt(window) {
   return typeof window.resets_at === 'number' ? window.resets_at : null
+}
+
+// "Friday, 13/11/2026", as the Kindle writes it.
+export function dateText(epochSeconds, clock = localClock) {
+  const t = clock(epochSeconds)
+  return `${WEEKDAYS[t.weekday]}, ${pad(t.day)}/${pad(t.month)}/${t.year}`
 }
 
 export function timeText(epochSeconds, clock = localClock) {
@@ -38,7 +52,12 @@ export function percentOf(window, now) {
 
 export function refreshText(window, now, clock = localClock) {
   if (!isWindow(window)) return null
-  const reset = resetsAt(window)
+  return countdownText(resetsAt(window), now, clock)
+}
+
+// "resets in 2h 14m" until the epoch to, or null once it has passed.
+export function countdownText(to, now, clock = localClock) {
+  const reset = typeof to === 'number' ? to : null
   if (reset === null || reset <= now) return null
 
   const minutes = Math.ceil((reset - now) / 60)
