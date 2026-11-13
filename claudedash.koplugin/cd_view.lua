@@ -145,7 +145,19 @@ local function draw_box(box, w, h, ctx)
     end
     if kind == "bar" then
         local percent = type(node.percent) == "number" and node.percent or 0
-        return ProgressWidget:new{ width = w, height = h, percentage = math.min(math.max(percent, 0), 100) / 100 }
+        return ProgressWidget:new{
+            width = w,
+            height = h,
+            percentage = math.min(math.max(percent, 0), 100) / 100,
+            -- KOReader's default gray fill is hard to tell from the empty part on e-ink.
+            fillcolor = Blitbuffer.COLOR_BLACK,
+            bgcolor = Blitbuffer.COLOR_WHITE,
+            bordercolor = Blitbuffer.COLOR_BLACK,
+            bordersize = Screen:scaleBySize(1),
+            radius = 0,
+            margin_h = 0,
+            margin_v = 0,
+        }
     end
     if kind == "rule" then
         return LineWidget:new{ background = Blitbuffer.COLOR_DARK_GRAY, dimen = Geom:new{ w = w, h = math.max(h, 1) } }

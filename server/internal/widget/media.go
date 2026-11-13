@@ -106,7 +106,7 @@ func volumeRow(s media.State, side, textSize int) (Node, bool) {
 		Add("vol-bar", "percent", volumeStep, 0, 100),
 		Add("vol-num", "text", volumeStep, 0, 100),
 	)
-	return Row(16, down, Bar(level, 16).ID("vol-bar").Grow(1), up, Text(text, textSize).Bold().ID("vol-num")), true
+	return Row(16, down, Bar(level, 22).ID("vol-bar").Grow(1), up, Text(text, textSize).Bold().ID("vol-num")), true
 }
 
 func (mediaKind) Build(size string, d Data) Node {

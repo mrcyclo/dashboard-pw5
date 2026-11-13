@@ -914,3 +914,31 @@ func TestRetiredSizeWithNoFitHides(t *testing.T) {
 		t.Fatalf("no new size fits in the reserved corner: %+v", got)
 	}
 }
+
+func TestSetWidgetOption(t *testing.T) {
+	h := newHarness(t)
+	if opts := h.app.GetState().Widgets.Catalog[0].Options; len(opts) != 1 || opts[0].Key != "align" {
+		t.Fatalf("catalog options %+v", opts)
+	}
+	s, err := h.app.SetWidgetOption("clock", "align", "right")
+	if err != nil || s.Widgets.Options["clock"]["align"] != "right" {
+		t.Fatalf("%+v %v", s.Widgets.Options, err)
+	}
+	if h.saved(t).WidgetOptions["clock"]["align"] != "right" {
+		t.Fatal("not saved")
+	}
+	if s.Widgets.Screen.Widgets[0].Tree["align"] != "end" {
+		t.Fatal("the Kindle gets the new alignment")
+	}
+	for _, c := range [][3]string{{"clock", "align", "up"}, {"clock", "color", "red"}, {"weather", "align", "left"}} {
+		if _, err := h.app.SetWidgetOption(c[0], c[1], c[2]); err == nil || err.Error() != "Unknown widget option" {
+			t.Errorf("%v: %v", c, err)
+		}
+	}
+}
+
+func TestWidgetOptionsStartAtDefaults(t *testing.T) {
+	if got := newHarness(t).app.GetState().Widgets.Options["clock"]["align"]; got != "left" {
+		t.Fatalf("got %q", got)
+	}
+}

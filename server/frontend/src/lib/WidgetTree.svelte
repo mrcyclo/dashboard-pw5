@@ -29,7 +29,7 @@
     </div>
   {:else if node.kind === 'bar'}
     <div class="absolute overflow-hidden border-2 border-[#111] bg-white" style={pos(b)}>
-      <div class="h-full bg-[#777]" style="width:{Math.min(Math.max(node.percent ?? 0, 0), 100)}%"></div>
+      <div class="h-full bg-[#111]" style="width:{Math.min(Math.max(node.percent ?? 0, 0), 100)}%"></div>
     </div>
   {:else if node.kind === 'rule'}
     <div class="absolute bg-[#555]" style={pos(b)}></div>

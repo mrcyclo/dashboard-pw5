@@ -323,3 +323,20 @@ func TestHiddenPlacementKeepsPosition(t *testing.T) {
 		t.Fatalf("got %+v err %v", got.Layout, err)
 	}
 }
+
+func TestWidgetOptionsRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	c := Default()
+	c.WidgetOptions = map[string]map[string]string{"clock": {"align": "center"}}
+	if err := Save(path, c); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(path)
+	if err != nil || got.WidgetOptions["clock"]["align"] != "center" {
+		t.Fatalf("got %+v err %v", got.WidgetOptions, err)
+	}
+	data, _ := os.ReadFile(path)
+	if !strings.Contains(string(data), `"widget_options"`) {
+		t.Fatal(string(data))
+	}
+}

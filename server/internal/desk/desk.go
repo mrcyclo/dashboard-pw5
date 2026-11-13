@@ -100,16 +100,19 @@ type KindleState struct {
 }
 
 type WidgetKind struct {
-	Kind  string   `json:"kind"`
-	Label string   `json:"label"`
-	Icon  string   `json:"icon"`
-	Sizes []string `json:"sizes"`
+	Kind    string          `json:"kind"`
+	Label   string          `json:"label"`
+	Icon    string          `json:"icon"`
+	Sizes   []string        `json:"sizes"`
+	Options []widget.Option `json:"options"`
 }
 
 type WidgetsState struct {
 	Catalog []WidgetKind `json:"catalog"`
 	// Layout has one placement per catalog kind, in catalog order; hidden ones have size "none".
 	Layout []grid.Placement `json:"layout"`
+	// Options has every kind's options with their current values, defaults filled in.
+	Options map[string]map[string]string `json:"options"`
 	// Screen is exactly what the Kindle is sent, for the window's preview.
 	Screen widget.Screen `json:"screen"`
 }
@@ -299,7 +302,13 @@ func (a *App) GetState() State {
 	state.Widgets = WidgetsState{
 		Catalog: a.catalog(),
 		Layout:  knownKinds(a.deps.Widgets, cfg.Layout),
-		Screen:  widget.BuildScreen(a.deps.Widgets, cfg.Layout, widget.Data{Now: now, Usage: snapshot, Media: state.Media}),
+		Options: a.options(cfg),
+		Screen: widget.BuildScreen(a.deps.Widgets, cfg.Layout, widget.Data{
+			Now:     now,
+			Usage:   snapshot,
+			Media:   state.Media,
+			Options: cfg.WidgetOptions,
+		}),
 	}
 	a.mu.Lock()
 	if a.battery != nil {
@@ -579,7 +588,13 @@ func (a *App) OpenDataFolder() error {
 func (a *App) catalog() []WidgetKind {
 	var out []WidgetKind
 	for _, k := range a.deps.Widgets.All() {
-		out = append(out, WidgetKind{Kind: k.Name(), Label: k.Label(), Icon: k.Icon(), Sizes: k.Sizes()})
+		out = append(out, WidgetKind{
+			Kind:    k.Name(),
+			Label:   k.Label(),
+			Icon:    k.Icon(),
+			Sizes:   k.Sizes(),
+			Options: a.deps.Widgets.OptionsOf(k.Name()),
+		})
 	}
 	return out
 }
@@ -591,9 +606,10 @@ func (a *App) Screen(battery int, ok bool) widget.Screen {
 		a.battery = &battery
 	}
 	layout := a.config.Layout
+	options := a.config.WidgetOptions
 	a.mu.Unlock()
 
-	d := widget.Data{Now: a.deps.Now(), Usage: a.deps.Usage.Latest()}
+	d := widget.Data{Now: a.deps.Now(), Usage: a.deps.Usage.Latest(), Options: options}
 	if a.deps.Media != nil {
 		d.Media = a.deps.Media.Snapshot()
 	}
@@ -610,6 +626,7 @@ func (a *App) Act(name string) error {
 }
 
 var (
+	errUnknownOption = errors.New("Unknown widget option")
 	errUnknownWidget = errors.New("Unknown widget or size")
 	errNoRoom        = errors.New("No room for this size. Move or hide another widget first")
 	errSpotTaken     = errors.New("That spot is taken")
@@ -689,4 +706,47 @@ func (a *App) updateLayout(kind string, change func(layout []grid.Placement, p *
 	p := layout[index]
 	a.deps.Log.Add(applog.Kindle, "widget layout changed: %s %s at %d,%d", p.Kind, p.Size, p.Col, p.Row)
 	return nil
+}
+
+// options lists every kind's option values, with the default where none was chosen.
+func (a *App) options(cfg config.Config) map[string]map[string]string {
+	out := map[string]map[string]string{}
+	for _, k := range a.deps.Widgets.All() {
+		values := map[string]string{}
+		for _, o := range a.deps.Widgets.OptionsOf(k.Name()) {
+			values[o.Key] = o.Default
+			if chosen, ok := cfg.WidgetOptions[k.Name()][o.Key]; ok && a.deps.Widgets.ValidOption(k.Name(), o.Key, chosen) {
+				values[o.Key] = chosen
+			}
+		}
+		out[k.Name()] = values
+	}
+	return out
+}
+
+// SetWidgetOption chooses one of a widget's options, such as its alignment.
+func (a *App) SetWidgetOption(kind, key, value string) (State, error) {
+	if !a.deps.Widgets.ValidOption(kind, key, value) {
+		return a.GetState(), errUnknownOption
+	}
+	err := a.update(func(c *config.Config) {
+		options := map[string]map[string]string{}
+		for k, values := range c.WidgetOptions {
+			options[k] = map[string]string{}
+			for key, v := range values {
+				options[k][key] = v
+			}
+		}
+		if options[kind] == nil {
+			options[kind] = map[string]string{}
+		}
+		options[kind][key] = value
+		c.WidgetOptions = options
+	})
+	if err != nil {
+		a.deps.Log.Add(applog.System, "could not save the widget option: %v", err)
+		return a.GetState(), errors.New(messageSaveFailed)
+	}
+	a.deps.Log.Add(applog.Kindle, "widget option changed: %s %s = %s", kind, key, value)
+	return a.GetState(), nil
 }

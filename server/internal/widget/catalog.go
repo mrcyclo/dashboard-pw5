@@ -16,6 +16,35 @@ type Data struct {
 	Now   time.Time
 	Usage usage.Snapshot
 	Media media.State
+	// Options holds each kind's chosen option values; see Configurable.
+	Options map[string]map[string]string
+}
+
+// Option returns the value chosen for a kind's option, or fallback when none was.
+func (d Data) Option(kind, key, fallback string) string {
+	if value, ok := d.Options[kind][key]; ok && value != "" {
+		return value
+	}
+	return fallback
+}
+
+// Choice is one value an option can take, with the words the window shows for it.
+type Choice struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
+// Option is a setting a widget offers besides its size.
+type Option struct {
+	Key     string   `json:"key"`
+	Label   string   `json:"label"`
+	Choices []Choice `json:"choices"`
+	Default string   `json:"default"`
+}
+
+// Configurable is a Kind with options. The window lists them under the widget.
+type Configurable interface {
+	Options() []Option
 }
 
 // Kind is one type of widget. Adding a widget means writing a Kind and listing it in Default.
@@ -116,4 +145,32 @@ func IconHash(name string) string {
 	}
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])[:12]
+}
+
+// OptionsOf lists a kind's options, or none.
+func (c *Catalog) OptionsOf(kind string) []Option {
+	k, ok := c.Get(kind)
+	if !ok {
+		return nil
+	}
+	configurable, ok := k.(Configurable)
+	if !ok {
+		return nil
+	}
+	return configurable.Options()
+}
+
+// ValidOption reports whether value is one of the choices of kind's option key.
+func (c *Catalog) ValidOption(kind, key, value string) bool {
+	for _, o := range c.OptionsOf(kind) {
+		if o.Key != key {
+			continue
+		}
+		for _, choice := range o.Choices {
+			if choice.Value == value {
+				return true
+			}
+		}
+	}
+	return false
 }

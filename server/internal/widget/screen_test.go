@@ -66,3 +66,11 @@ func TestIconsListed(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildScreenPassesOptions(t *testing.T) {
+	d := Data{Now: testNow, Options: map[string]map[string]string{"clock": {"align": "right"}}}
+	s := BuildScreen(Default(nil), testLayout(), d)
+	if s.Widgets[0].Tree["align"] != "end" {
+		t.Fatalf("%v", s.Widgets[0].Tree)
+	}
+}

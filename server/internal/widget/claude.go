@@ -14,7 +14,7 @@ const (
 
 	claudeTitleSize = 29
 	claudeCellSize  = 25
-	claudeBarHeight = 16
+	claudeBarHeight = 22
 )
 
 type claudeKind struct{}

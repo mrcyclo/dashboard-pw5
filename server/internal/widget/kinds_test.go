@@ -445,3 +445,41 @@ func TestClaudeTallHeaderMatchesWide(t *testing.T) {
 		t.Fatalf("one shared countdown in the header, none per row: %v", countdowns)
 	}
 }
+
+func TestClockAlignment(t *testing.T) {
+	k := clockKind{}
+	var configurable Configurable = k
+	options := configurable.Options()
+	if len(options) != 1 || options[0].Key != "align" || options[0].Default != "left" || len(options[0].Choices) != 3 {
+		t.Fatalf("options %+v", options)
+	}
+	cases := map[string]string{"": "start", "left": "start", "center": "center", "right": "end", "sideways": "start"}
+	for _, size := range k.Sizes() {
+		for value, want := range cases {
+			d := Data{Now: testNow, Options: map[string]map[string]string{"clock": {"align": value}}}
+			if got := k.Build(size, d)["align"]; got != want {
+				t.Errorf("%s align %q: got %v want %s", size, value, got, want)
+			}
+		}
+	}
+}
+
+func TestBigClockUsesTheRoom(t *testing.T) {
+	if size := byKind(clockKind{}.Build("3x2", Data{Now: testNow}), "clock")[0]["size"].(int); size < 160 {
+		t.Fatalf("the 3x2 time is only %d px", size)
+	}
+}
+
+func TestBarsAreThickEnoughToRead(t *testing.T) {
+	vol := 40
+	data := Data{Now: testNow, Usage: fullSnapshot(), Media: media.State{Active: true, Title: "Song", Volume: &vol}}
+	for _, k := range Default(nil).All() {
+		for _, size := range k.Sizes() {
+			for _, bar := range byKind(k.Build(size, data), "bar") {
+				if bar["height"].(int) < 20 {
+					t.Errorf("%s %s: a %d px bar is hard to read", k.Name(), size, bar["height"])
+				}
+			}
+		}
+	}
+}

@@ -65,6 +65,8 @@ type Config struct {
 	Background   Background `json:"background"`
 	// Where each widget kind sits on the Kindle; see grid.Placement.
 	Layout []grid.Placement `json:"layout"`
+	// Per widget kind, the options it offers (such as "align") and their chosen values.
+	WidgetOptions map[string]map[string]string `json:"widget_options,omitempty"`
 }
 
 func Default() Config {

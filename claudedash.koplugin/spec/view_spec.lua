@@ -176,3 +176,20 @@ assert(has(texts(view.build(never)), "Waiting for the PC"), "before the PC was e
 local hidden = state(function() return nil end)
 hidden.screen.widgets = {}
 assert(not has(texts(view.build(hidden)), "Waiting for the PC"), "every widget hidden is not waiting for the PC")
+
+-- Bars are filled in solid black, so the level reads at a glance on e-ink.
+local function bars(widget, out)
+    out = out or {}
+    if getmetatable(widget) == Progress then
+        table.insert(out, widget)
+    end
+    for _, child in ipairs(widget) do
+        bars(child, out)
+    end
+    return out
+end
+local found = bars(view.build(state(function(name) return "icons/" .. name .. ".svg" end)))
+assert(#found > 0, "the volume bar is drawn")
+for _, bar in ipairs(found) do
+    assert(bar.fillcolor == 0, "bar fill must be black")
+end

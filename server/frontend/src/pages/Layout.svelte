@@ -1,6 +1,6 @@
 <script>
   import { ChartColumn, Clock, LayoutGrid, Music } from '@lucide/svelte'
-  import { MoveWidget, SetWidgetSize } from '../../bindings/claudedash/internal/desk/app'
+  import { MoveWidget, SetWidgetOption, SetWidgetSize } from '../../bindings/claudedash/internal/desk/app'
   import { app, call } from '../lib/store.svelte.js'
   import { canShow } from '../lib/grid.js'
   import KindleScreen from '../lib/KindleScreen.svelte'
@@ -20,6 +20,12 @@
     selected = kind
     if (placementOf(kind)?.size === size) return
     call(() => SetWidgetSize(kind, size))
+  }
+
+  function chooseOption(kind, key, value) {
+    selected = kind
+    if (widgets.options?.[kind]?.[key] === value) return
+    call(() => SetWidgetOption(kind, key, value))
   }
 
   function move(kind, col, row) {
@@ -87,6 +93,27 @@
                 </button>
               {/each}
             </div>
+            {#each kind.options ?? [] as option (option.key)}
+              {@const value = widgets.options?.[kind.kind]?.[option.key] ?? option.default}
+              <div class="mt-2.5 flex items-center gap-3">
+                <span class="w-[72px] text-sm text-base-content/60">{option.label}</span>
+                <div class="join">
+                  {#each option.choices as choice (choice.value)}
+                    <button
+                      class="btn join-item btn-sm min-w-[64px] {value === choice.value
+                        ? 'border-[#ff9900] bg-[rgba(255,153,0,.16)] text-[#febd69]'
+                        : 'btn-ghost border-white/[.12]'}"
+                      onclick={(event) => {
+                        event.stopPropagation()
+                        chooseOption(kind.kind, option.key, choice.value)
+                      }}
+                    >
+                      {choice.label}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/each}
           </div>
         {/each}
       </div>
