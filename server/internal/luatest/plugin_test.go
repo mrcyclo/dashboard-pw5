@@ -77,6 +77,10 @@ func TestPatchSpec(t *testing.T) {
 	runSpec(t, "patch_spec.lua")
 }
 
+func TestScreenSpec(t *testing.T) {
+	runSpec(t, "screen_spec.lua")
+}
+
 func TestLayoutSpec(t *testing.T) {
 	runSpec(t, "layout_spec.lua")
 }
