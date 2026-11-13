@@ -97,9 +97,14 @@ type loop struct {
 
 	chooser *discovery.Chooser
 	base    string
-	polling bool
-	epoch   int
-	actions int
+	pcName  string
+	pcPort  int
+	// lastSwitch and hint are what the last frame showed, so beacons repaint only on a change.
+	lastSwitch string
+	hint       string
+	polling    bool
+	epoch      int
+	actions    int
 
 	failures int
 	offline  bool
@@ -235,11 +240,9 @@ func (l *loop) draw(names []string, full, flash bool) {
 		FirstRun:   l.scr == nil,
 		Now:        l.c.Now(),
 	}
-	if l.offline || l.scr == nil {
-		if others := l.chooser.Others(l.c.Now()); len(others) > 0 && l.c.Manual == "" {
-			st.Switch = others[0].Name
-		}
-	}
+	st.Switch = l.switchName()
+	st.Hint = l.hint
+	l.lastSwitch = st.Switch
 	l.regions, l.buttons, l.corner = render.Draw(l.img, st, l.c.Fonts, l.assets)
 	if l.c.Observe != nil {
 		l.c.Observe(st)
@@ -276,22 +279,38 @@ func (l *loop) noTouch(ctx context.Context) error {
 	return ErrNoTouch
 }
 
+// switchName is the other PC the corner offers while this one cannot be reached.
+func (l *loop) switchName() string {
+	if l.c.Manual != "" || (!l.offline && l.scr != nil) {
+		return ""
+	}
+	others := l.chooser.Others(l.c.Now())
+	if len(others) == 0 {
+		return ""
+	}
+	return others[0].Name
+}
+
 // hear follows beacons: the chosen PC's address, and others to offer.
 func (l *loop) hear(s discovery.Seen, poll *time.Timer) {
 	l.chooser.Hear(s)
 	if l.c.Manual != "" {
 		return
 	}
-	current, ok := l.chooser.Current(l.c.Now())
-	if ok {
+	if current, ok := l.chooser.Current(l.c.Now()); ok {
+		l.pcName, l.pcPort = current.Name, current.Port
 		base := fmt.Sprintf("http://%s", net.JoinHostPort(current.Addr.String(), strconv.Itoa(current.Port)))
-		if base != l.base {
+		switch {
+		case base != l.base:
 			l.base = base
 			saveState(l.c.Dir, current.ID)
 			poll.Reset(0)
+		case l.offline && !l.polling:
+			// The PC is broadcasting again: ask now rather than wait out the backoff.
+			poll.Reset(0)
 		}
 	}
-	if l.offline || l.scr == nil {
+	if l.switchName() != l.lastSwitch {
 		l.draw([]string{"corner"}, l.scr == nil, false)
 	}
 }
@@ -373,6 +392,13 @@ func (l *loop) pollFailed(err error) {
 		l.logf("poll failed: %v", err)
 	}
 	l.checkWifi()
+	if l.scr == nil && l.base != "" && l.pcName != "" {
+		hint := fmt.Sprintf("Found %s, but cannot connect. Allow TCP port %d in the PC's firewall.", l.pcName, l.pcPort)
+		if hint != l.hint {
+			l.hint = hint
+			l.draw(nil, true, false)
+		}
+	}
 	if !l.offline && l.failures >= disconnectedAfter {
 		l.offline = true
 		l.draw([]string{"corner"}, false, false)
@@ -403,7 +429,7 @@ func (l *loop) apply(body []byte) {
 	if l.offline || l.wifiOff {
 		names = append(names, "corner")
 	}
-	l.failures, l.offline, l.wifiOff = 0, false, false
+	l.failures, l.offline, l.wifiOff, l.hint = 0, false, false, ""
 	l.scr = current
 
 	now := l.c.Now()

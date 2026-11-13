@@ -442,3 +442,40 @@ func TestWifiOffIsTurnedOnBeforeAnyPCIsKnown(t *testing.T) {
 		t.Fatal("Wi-Fi must be switched on")
 	}
 }
+
+// A PC that broadcasts but refuses /screen.json, as when its firewall blocks TCP 8377.
+func refusingPC(t *testing.T) discovery.Seen {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "no", http.StatusForbidden)
+	}))
+	t.Cleanup(server.Close)
+	addr := server.Listener.Addr().(*net.TCPAddr)
+	return discovery.Seen{Beacon: discovery.NewBeacon(pcID, "desk-pc", addr.Port), Addr: addr.IP, At: time.Now()}
+}
+
+func TestFoundButUnreachablePCSaysSo(t *testing.T) {
+	h := start(t, t.TempDir(), nil)
+	h.beacons <- refusingPC(t)
+	st := h.waitState(t, "the hint", func(st render.State) bool { return st.Hint != "" })
+	if !strings.Contains(st.Hint, "desk-pc") || !strings.Contains(st.Hint, "firewall") {
+		t.Fatalf("hint %q", st.Hint)
+	}
+}
+
+func TestRepeatedBeaconsDoNotRepaint(t *testing.T) {
+	h := start(t, t.TempDir(), nil)
+	seen := refusingPC(t)
+	h.beacons <- seen
+	h.waitState(t, "the hint", func(st render.State) bool { return st.Hint != "" })
+	time.Sleep(100 * time.Millisecond)
+	before := len(h.display.snapshot())
+	for i := 0; i < 5; i++ {
+		seen.At = time.Now()
+		h.beacons <- seen
+		time.Sleep(20 * time.Millisecond)
+	}
+	time.Sleep(100 * time.Millisecond)
+	if after := len(h.display.snapshot()); after != before {
+		t.Fatalf("%d repaints for beacons that changed nothing", after-before)
+	}
+}

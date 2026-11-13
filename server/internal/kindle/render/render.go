@@ -54,6 +54,8 @@ type State struct {
 	// Switch is the name of another PC the user can move to, or "".
 	Switch   string
 	FirstRun bool
+	// Hint replaces the first-run screen's second line, such as why a found PC cannot be reached.
+	Hint string
 	// Message replaces everything with one centered line, such as a fatal error.
 	Message string
 	Now     time.Time
@@ -103,7 +105,11 @@ func Draw(dst *image.Gray, st State, f Fonts, a Assets) (map[string]image.Rectan
 	var buttons []Button
 	if st.Screen == nil {
 		p.centered("Looking for Claude Dashboard on your network", Height/2-40, 45, true)
-		p.centered("Open Claude Dashboard on your PC", Height/2+40, 35, false)
+		second := "Open Claude Dashboard on your PC"
+		if st.Hint != "" {
+			second = st.Hint
+		}
+		p.centered(second, Height/2+40, 35, false)
 	} else {
 		for _, w := range st.Screen.Widgets {
 			regions[w.Kind] = w.Rect
