@@ -1,5 +1,5 @@
 <script>
-  import { ChartColumn, Clock, LayoutGrid, Music } from '@lucide/svelte'
+  import { AlignCenter, AlignLeft, AlignRight, ChartColumn, Clock, LayoutGrid, Music } from '@lucide/svelte'
   import { MoveWidget, SetWidgetOption, SetWidgetSize } from '../../bindings/claudedash/internal/desk/app'
   import { app, call } from '../lib/store.svelte.js'
   import { canShow } from '../lib/grid.js'
@@ -7,6 +7,8 @@
 
   // Icons named by each widget kind; a kind this window does not know gets a plain one.
   const ICONS = { clock: Clock, 'chart-column': ChartColumn, music: Music }
+  // Option choices drawn as an icon; others show their label.
+  const CHOICE_ICONS = { left: AlignLeft, center: AlignCenter, right: AlignRight }
 
   let widgets = $derived(app.state.widgets)
   let background = $derived(app.state.background)
@@ -73,47 +75,49 @@
               </span>
               {kind.label}
             </div>
-            <div class="join">
-              {#each ['none', ...kind.sizes] as size (size)}
-                {@const check = canShow(widgets.layout, kind.kind, size)}
-                <button
-                  class="btn join-item btn-sm min-w-[64px] {current === size
-                    ? size === 'none'
-                      ? 'btn-neutral'
-                      : 'border-[#ff9900] bg-[rgba(255,153,0,.16)] text-[#febd69]'
-                    : 'btn-ghost border-white/[.12]'}"
-                  disabled={!check.ok && current !== size}
-                  title={check.ok ? '' : check.reason}
-                  onclick={(event) => {
-                    event.stopPropagation()
-                    choose(kind.kind, size)
-                  }}
-                >
-                  {sizeLabel(size)}
-                </button>
-              {/each}
-            </div>
-            {#each kind.options ?? [] as option (option.key)}
-              {@const value = widgets.options?.[kind.kind]?.[option.key] ?? option.default}
-              <div class="mt-2.5 flex items-center gap-3">
-                <span class="w-[72px] text-sm text-base-content/60">{option.label}</span>
-                <div class="join">
+            <div class="flex items-center gap-3">
+              <div class="join">
+                {#each ['none', ...kind.sizes] as size (size)}
+                  {@const check = canShow(widgets.layout, kind.kind, size)}
+                  <button
+                    class="btn join-item btn-sm min-w-[64px] {current === size
+                      ? size === 'none'
+                        ? 'btn-neutral'
+                        : 'border-[#ff9900] bg-[rgba(255,153,0,.16)] text-[#febd69]'
+                      : 'btn-ghost border-white/[.12]'}"
+                    disabled={!check.ok && current !== size}
+                    title={check.ok ? '' : check.reason}
+                    onclick={(event) => {
+                      event.stopPropagation()
+                      choose(kind.kind, size)
+                    }}
+                  >
+                    {sizeLabel(size)}
+                  </button>
+                {/each}
+              </div>
+              {#each kind.options ?? [] as option (option.key)}
+                {@const value = widgets.options?.[kind.kind]?.[option.key] ?? option.default}
+                <div class="join ml-auto" role="group" aria-label={option.label}>
                   {#each option.choices as choice (choice.value)}
+                    {@const ChoiceIcon = CHOICE_ICONS[choice.value]}
                     <button
-                      class="btn join-item btn-sm min-w-[64px] {value === choice.value
+                      class="btn join-item btn-sm {ChoiceIcon ? 'btn-square' : 'min-w-[64px]'} {value === choice.value
                         ? 'border-[#ff9900] bg-[rgba(255,153,0,.16)] text-[#febd69]'
                         : 'btn-ghost border-white/[.12]'}"
+                      title="{option.label}: {choice.label}"
+                      aria-label="{option.label}: {choice.label}"
                       onclick={(event) => {
                         event.stopPropagation()
                         chooseOption(kind.kind, option.key, choice.value)
                       }}
                     >
-                      {choice.label}
+                      {#if ChoiceIcon}<ChoiceIcon size={16} />{:else}{choice.label}{/if}
                     </button>
                   {/each}
                 </div>
-              </div>
-            {/each}
+              {/each}
+            </div>
           </div>
         {/each}
       </div>
