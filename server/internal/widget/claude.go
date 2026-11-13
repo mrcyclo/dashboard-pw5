@@ -9,6 +9,8 @@ import (
 
 const (
 	maxLimits = 4
+	// The API reports limits that reset together a second or so apart.
+	sameMomentSeconds = 120
 
 	claudeTitleSize = 29
 	claudeCellSize  = 25
@@ -41,8 +43,13 @@ func limits(s usage.Snapshot, now int64) []limit {
 	if s.FiveHour != nil {
 		out = append(out, newLimit("5-hour", s.FiveHour.UsedPercent, s.FiveHour.ResetsAt, now))
 	}
+	// Next to a five-hour limit, "All models" alone would not say which window it is.
+	weekly := "All models"
+	if s.FiveHour != nil {
+		weekly = "Weekly"
+	}
 	if s.SevenDay != nil {
-		out = append(out, newLimit("Weekly", s.SevenDay.UsedPercent, s.SevenDay.ResetsAt, now))
+		out = append(out, newLimit(weekly, s.SevenDay.UsedPercent, s.SevenDay.ResetsAt, now))
 	}
 	for _, m := range s.Models {
 		if m.Name == "" {
@@ -56,8 +63,8 @@ func limits(s usage.Snapshot, now int64) []limit {
 	return out
 }
 
-func usedText(l limit) Node {
-	n := Text(fmt.Sprintf("%d%% used", l.percent), claudeCellSize).Bold()
+func usedText(l limit, size int) Node {
+	n := Text(fmt.Sprintf("%d%% used", l.percent), size).Bold()
 	if l.resetsAt > 0 {
 		n.At(l.resetsAt, map[string]any{"text": "0% used"})
 	}
@@ -76,20 +83,30 @@ func countdown(l limit) (Node, bool) {
 	if l.resetsAt == 0 {
 		return nil, false
 	}
-	return Countdown(l.resetsAt, claudeCellSize).Dim(), true
+	return Countdown(l.resetsAt, claudeCellSize), true
 }
 
-// wideCell is a column of the 6x1 size: label and "N% used", the bar, then
-// its countdown, or the stale mark in the first column.
-func wideCell(l limit, note Node) Node {
-	cell := []Node{Row(8, Text(l.label, claudeCellSize).Bold().Grow(1), usedText(l)), limitBar(l)}
-	if note == nil {
-		note, _ = countdown(l)
+// sharedReset is the reset time every limit shares, or 0.
+func sharedReset(list []limit) int64 {
+	first := list[0].resetsAt
+	for _, l := range list {
+		diff := l.resetsAt - first
+		if l.resetsAt == 0 || diff <= -sameMomentSeconds || diff >= sameMomentSeconds {
+			return 0
+		}
 	}
-	if note != nil {
-		cell = append(cell, note)
+	return first
+}
+
+// wideCell is a column of the 6x1 size: label, its own countdown when the
+// limits do not reset together, and "N% used" on one line, the bar below.
+func wideCell(l limit, ownCountdown bool, size int) Node {
+	line := []Node{Text(l.label, size).Bold().Grow(1)}
+	if c, ok := countdown(l); ok && ownCountdown {
+		line = append(line, c)
 	}
-	return Col(4, cell...).Grow(1)
+	line = append(line, usedText(l, size))
+	return Col(4, Row(8, line...), limitBar(l)).Grow(1)
 }
 
 // tallRow is a line of the 3x2 size: label, countdown and "N% used", then the bar.
@@ -98,7 +115,7 @@ func tallRow(l limit) Node {
 	if c, ok := countdown(l); ok {
 		line = append(line, c)
 	}
-	line = append(line, usedText(l))
+	line = append(line, usedText(l, claudeCellSize))
 	return Col(4, Row(10, line...), limitBar(l))
 }
 
@@ -119,15 +136,7 @@ func (claudeKind) Build(size string, d Data) Node {
 	}
 
 	if size == "6x1" {
-		var cells []Node
-		for i, l := range list {
-			var note Node
-			if i == 0 {
-				note = stale
-			}
-			cells = append(cells, wideCell(l, note))
-		}
-		return Row(16, cells...).Align("start")
+		return wide(d.Usage, list, stale)
 	}
 
 	header := []Node{Text("Claude", claudeTitleSize).Bold().Grow(1)}
@@ -139,4 +148,31 @@ func (claudeKind) Build(size string, d Data) Node {
 		rows = append(rows, tallRow(l))
 	}
 	return Col(8, rows...)
+}
+
+// wide is the original look: a titled header with the shared reset time on the
+// right, a rule, then the limits side by side.
+func wide(s usage.Snapshot, list []limit, stale Node) Node {
+	title := "Claude · weekly limits"
+	if s.FiveHour != nil {
+		title = "Claude · usage limits"
+	}
+	header := []Node{Text(title, claudeTitleSize).Bold().Grow(1)}
+	if stale != nil {
+		header = append(header, stale)
+	}
+	shared := sharedReset(list)
+	if shared > 0 {
+		header = append(header, Countdown(shared, claudeCellSize))
+	}
+	// Four limits in a row only fit with smaller text.
+	size := claudeTitleSize
+	if len(list) > 2 {
+		size = claudeCellSize
+	}
+	var cells []Node
+	for _, l := range list {
+		cells = append(cells, wideCell(l, shared == 0, size))
+	}
+	return Col(6, Row(12, header...), Rule(), Row(16, cells...).Align("start"))
 }

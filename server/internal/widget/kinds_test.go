@@ -339,3 +339,42 @@ func TestEverySizeFitsItsBox(t *testing.T) {
 		}
 	}
 }
+
+// The wide size keeps the original look: a titled header with the shared reset, then the bars.
+func TestClaudeWideKeepsTheOriginalLook(t *testing.T) {
+	reset := testNow.Unix() + 3600
+	snap := usage.Snapshot{
+		SevenDay: &usage.Window{UsedPercent: 77, ResetsAt: reset},
+		Models:   []usage.ModelWindow{{Name: "Fable", UsedPercent: 82, ResetsAt: reset + 1}},
+	}
+	tree := claudeKind{}.Build("6x1", Data{Now: testNow, Usage: snap})
+	got := texts(tree)
+	want := []string{"Claude · weekly limits", "All models", "77% used", "Fable only", "82% used"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %q", got)
+	}
+	countdowns := byKind(tree, "countdown")
+	if len(countdowns) != 1 || countdowns[0]["to"] != reset {
+		t.Fatalf("one shared countdown in the header: %v", countdowns)
+	}
+	if len(byKind(tree, "rule")) != 1 {
+		t.Fatal("a rule under the header")
+	}
+}
+
+func TestClaudeWideNamesTheFiveHourLimit(t *testing.T) {
+	got := strings.Join(texts(claudeKind{}.Build("6x1", Data{Now: testNow, Usage: fullSnapshot()})), "|")
+	if !strings.HasPrefix(got, "Claude · usage limits|5-hour|") || !strings.Contains(got, "|Weekly|") {
+		t.Fatal(got)
+	}
+}
+
+func TestCountdownsAreNotDimmed(t *testing.T) {
+	for _, size := range []string{"6x1", "3x2"} {
+		for _, c := range byKind(claudeKind{}.Build(size, Data{Now: testNow, Usage: worstSnapshot()}), "countdown") {
+			if c["dim"] == true {
+				t.Fatalf("%s: reset times must be easy to read: %v", size, c)
+			}
+		}
+	}
+}
