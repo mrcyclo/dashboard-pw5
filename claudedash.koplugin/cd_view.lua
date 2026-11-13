@@ -1,27 +1,34 @@
+--[[
+Draws the dashboard: the background picture, one see-through panel per
+widget with its component tree on top, and the corner with the battery,
+refresh and exit controls. Trees are laid out by cd_tree in reference pixels
+(1236 px wide screen) and scaled to the real screen here.
+]]
 local Blitbuffer = require("ffi/blitbuffer")
 local CenterContainer = require("ui/widget/container/centercontainer")
 local Device = require("device")
 local Font = require("ui/font")
 local FrameContainer = require("ui/widget/container/framecontainer")
 local Geom = require("ui/geometry")
-local HorizontalGroup = require("ui/widget/horizontalgroup")
-local HorizontalSpan = require("ui/widget/horizontalspan")
 local ImageWidget = require("ui/widget/imagewidget")
 local LeftContainer = require("ui/widget/container/leftcontainer")
 local LineWidget = require("ui/widget/linewidget")
 local OverlapGroup = require("ui/widget/overlapgroup")
 local ProgressWidget = require("ui/widget/progresswidget")
 local TextWidget = require("ui/widget/textwidget")
-local VerticalGroup = require("ui/widget/verticalgroup")
-local VerticalSpan = require("ui/widget/verticalspan")
 local Widget = require("ui/widget/widget")
-local format = require("cd_format")
-local layout = require("cd_layout")
+local tree = require("cd_tree")
 
 local Screen = Device.screen
 
 local view = {}
 
+local REFERENCE_WIDTH = 1236
+local PADDING = 24
+local CORNER_SIDE = 150
+local BATTERY_W = 220
+local OFFLINE_W = 240
+local CORNER_TEXT = 35
 local DEFAULT_FROST = 0.7
 
 -- A see-through pane: it lightens whatever is already painted underneath, so
@@ -39,129 +46,43 @@ function Frost:paintTo(bb, x, y)
     bb:lightenRect(x, y, self.dimen.w, self.dimen.h, self.amount)
 end
 
-local function scaled(size)
-    return Screen:scaleBySize(size)
+local function at(widget, x, y)
+    widget.overlap_offset = { math.floor(x), math.floor(y) }
+    return widget
 end
 
-local function text(str, size, bold, max_width)
+-- Tree sizes are font pixel heights at the reference width; KOReader faces take
+-- a size it scales by screen density, so divide that scaling back out.
+local function face(size, scale)
+    local density = Screen:scaleBySize(100) / 100
+    return Font:getFace("cfont", math.max(math.floor(size * scale / density + 0.5), 1))
+end
+
+local function text_widget(text, size, bold, dim, scale, max_width)
     return TextWidget:new{
-        text = str,
-        face = Font:getFace("cfont", size),
+        text = text,
+        face = face(size, scale),
         bold = bold,
+        fgcolor = dim and Blitbuffer.COLOR_DARK_GRAY or Blitbuffer.COLOR_BLACK,
         max_width = max_width,
     }
 end
 
-local function span(size)
-    return VerticalSpan:new{ width = scaled(size) }
-end
-
-local function left(widget, width)
-    return LeftContainer:new{
-        dimen = Geom:new{ w = width, h = widget:getSize().h },
-        widget,
+local function scaled_rect(rect, scale)
+    return {
+        x = math.floor(rect.x * scale),
+        y = math.floor(rect.y * scale),
+        w = math.floor(rect.w * scale),
+        h = math.floor(rect.h * scale),
     }
 end
 
--- Two widgets pushed to the opposite ends of a row.
-local function spread(left_widget, right_widget, width)
-    local gap = math.max(width - left_widget:getSize().w - right_widget:getSize().w, 0)
-    return HorizontalGroup:new{ left_widget, HorizontalSpan:new{ width = gap }, right_widget }
-end
-
-local function rule(width)
-    return LineWidget:new{
-        background = Blitbuffer.COLOR_DARK_GRAY,
-        dimen = Geom:new{ w = width, h = Screen:scaleBySize(1) },
-    }
-end
-
-local function header(group, title, note, width)
-    local note_widget = note and text(note, 13)
-    local title_width = note_widget and (width - note_widget:getSize().w - scaled(8)) or width
-    local title_widget = text(title, 15, true, title_width)
-    if note_widget then
-        table.insert(group, spread(title_widget, note_widget, width))
-    else
-        table.insert(group, left(title_widget, width))
-    end
-    table.insert(group, span(2))
-    table.insert(group, rule(width))
-    table.insert(group, span(5))
-end
-
--- One limit: its label and "N% used" on a line, a bar below.
-local function limit_cell(row, width)
-    local used = text(row.used, 15, true)
-    local label = text(row.label, 15, true, width - used:getSize().w - scaled(8))
-    local cell = VerticalGroup:new{
-        align = "left",
-        spread(label, used, width),
-        span(2),
-        ProgressWidget:new{
-            width = width,
-            height = scaled(10),
-            percentage = row.percent / 100,
-        },
-    }
-    if row.refresh then
-        table.insert(cell, left(text(row.refresh, 13), width))
-    end
-    return cell
-end
-
--- Limits sit two to a line so the section stays short.
-local function limit_rows(group, rows, width)
-    local gap = scaled(14)
-    local cell_width = math.floor((width - gap) / 2)
-    for index = 1, #rows, 2 do
-        if index > 1 then
-            table.insert(group, span(6))
-        end
-        local first, second = rows[index], rows[index + 1]
-        if second then
-            table.insert(group, HorizontalGroup:new{
-                align = "top",
-                limit_cell(first, cell_width),
-                HorizontalSpan:new{ width = gap },
-                limit_cell(second, cell_width),
-            })
-        else
-            table.insert(group, limit_cell(first, width))
-        end
-    end
-end
-
-local function claude_block(group, state, width)
-    local sections = format.claude_sections(state.snapshot, state.now)
-    if #sections == 0 then
-        header(group, "Claude", nil, width)
-        table.insert(group, left(text(state.server_error or "Cannot reach the PC", 15), width))
-        return
-    end
-
-    for index, section in ipairs(sections) do
-        if index > 1 then
-            table.insert(group, span(8))
-        end
-        header(group, section.title, section.refresh, width)
-        limit_rows(group, section.rows, width)
-    end
-
-    -- When the numbers are current the timestamp is noise; it matters once they are old.
-    local is_stale = state.fetch_failed or (type(state.snapshot) == "table" and state.snapshot.stale == true)
-    local updated = is_stale and format.updated_line(state.snapshot, state.fetch_failed)
-    if updated then
-        table.insert(group, span(4))
-        table.insert(group, left(text(updated, 13), width))
-    end
-end
-
-local function icon(state, name, size, dim)
+local function icon_widget(file, side, dim)
+    if not file or side < 1 then return nil end
     return ImageWidget:new{
-        file = state.icon_dir .. "/" .. name .. ".svg",
-        width = size,
-        height = size,
+        file = file,
+        width = side,
+        height = side,
         alpha = true,
         dim = dim,
         -- Night mode already inverts the whole screen; inverting icons again would undo it.
@@ -169,49 +90,29 @@ local function icon(state, name, size, dim)
     }
 end
 
-local function cover(state, side)
-    if state.cover then
-        return CenterContainer:new{
-            dimen = Geom:new{ w = side, h = side },
-            ImageWidget:new{
-                image = state.cover,
-                -- The dashboard owns the bitmap and reuses it across redraws.
-                image_disposable = false,
-                width = side,
-                height = side,
-                scale_factor = 0,
-            },
-        }
-    end
-    local inner = side - 2 * Screen:scaleBySize(1)
+local function centered_in(widget, w, h)
+    return CenterContainer:new{ dimen = Geom:new{ w = w, h = h }, widget }
+end
+
+local function placeholder(w, h)
     return FrameContainer:new{
         bordersize = Screen:scaleBySize(1),
         padding = 0,
         margin = 0,
         background = Blitbuffer.COLOR_LIGHT_GRAY,
-        CenterContainer:new{
-            dimen = Geom:new{ w = inner, h = inner },
-            icon(state, "note", math.floor(side * 0.4)),
-        },
+        Widget:new{ dimen = Geom:new{ w = math.max(w - 2 * Screen:scaleBySize(1), 1), h = math.max(h - 2 * Screen:scaleBySize(1), 1) } },
     }
 end
 
-local function at(widget, x, y)
-    widget.overlap_offset = { math.floor(x), math.floor(y) }
-    return widget
-end
-
--- Places a widget so its center matches the center of an area.
-local function centered(widget, zone)
-    local size = widget:getSize()
-    return at(widget, zone.x + (zone.w - size.w) / 2, zone.y + (zone.h - size.h) / 2)
-end
-
-local function button(state, zone, icon_name, disabled)
-    local side = math.floor(math.min(zone.w, zone.h) * 0.8)
+local function button_widget(node, w, h, icon_file)
+    local side = math.min(w, h)
+    local disabled = node.disabled == true
+    if node.plain == true then
+        return centered_in(icon_widget(icon_file(node.icon), math.floor(side * 0.63), disabled) or Widget:new{}, w, h)
+    end
     local border = Screen:scaleBySize(2)
     local inner = side - 2 * border
-    return centered(FrameContainer:new{
+    return centered_in(FrameContainer:new{
         bordersize = border,
         color = disabled and Blitbuffer.COLOR_GRAY or Blitbuffer.COLOR_BLACK,
         radius = math.floor(side / 2),
@@ -219,102 +120,112 @@ local function button(state, zone, icon_name, disabled)
         background = Blitbuffer.COLOR_WHITE,
         padding = 0,
         margin = 0,
-        CenterContainer:new{
-            dimen = Geom:new{ w = inner, h = inner },
-            icon(state, icon_name, math.floor(side * 0.42), disabled),
-        },
-    }, zone)
+        centered_in(icon_widget(icon_file(node.icon), math.floor(side * 0.42), disabled) or Widget:new{}, inner, inner),
+    }, w, h)
 end
 
--- Quieter icon, level bar, louder icon, number: the two icons are the buttons.
-local function volume_row(layers, state, zones)
-    local icon_size = math.floor(zones.volume_down.h * 0.42)
-    table.insert(layers, centered(icon(state, "volume-low", icon_size), zones.volume_down))
-    table.insert(layers, centered(icon(state, "volume-high", icon_size), zones.volume_up))
-
-    local fraction = format.volume_fraction(state.media)
-    if fraction then
-        table.insert(layers, centered(ProgressWidget:new{
-            width = zones.volume_bar.w,
-            height = scaled(9),
-            percentage = fraction,
-        }, zones.volume_bar))
+-- draw_box turns one laid-out box into a KOReader widget of its size, or nil.
+local function draw_box(box, w, h, ctx)
+    local node = box.node
+    local kind = node.kind
+    if kind == "text" or kind == "clock" or kind == "countdown" then
+        if box.text == "" then return nil end
+        local size = type(node.size) == "number" and node.size or 20
+        local widget = text_widget(box.text, size, node.bold == true, node.dim == true, ctx.scale, w)
+        return LeftContainer:new{ dimen = Geom:new{ w = w, h = h }, widget }
     end
+    if kind == "bar" then
+        local percent = type(node.percent) == "number" and node.percent or 0
+        return ProgressWidget:new{ width = w, height = h, percentage = math.min(math.max(percent, 0), 100) / 100 }
+    end
+    if kind == "rule" then
+        return LineWidget:new{ background = Blitbuffer.COLOR_DARK_GRAY, dimen = Geom:new{ w = w, h = math.max(h, 1) } }
+    end
+    if kind == "icon" then
+        return centered_in(icon_widget(ctx.icon_file(node.name), math.min(w, h), node.dim == true) or Widget:new{}, w, h)
+    end
+    if kind == "image" then
+        local bitmap = type(node.src) == "string" and ctx.image_for("image:" .. node.src)
+        if not bitmap then return placeholder(w, h) end
+        return ImageWidget:new{
+            image = bitmap,
+            -- The dashboard owns the bitmap and reuses it across redraws.
+            image_disposable = false,
+            width = w,
+            height = h,
+            scale_factor = 0,
+        }
+    end
+    if kind == "button" then
+        return button_widget(node, w, h, ctx.icon_file)
+    end
+    return nil
+end
 
-    local volume = format.volume_text(state.media)
-    if volume then
-        table.insert(layers, centered(text(volume, 22, true), zones.volume_value))
+-- measure gives a text's width in reference pixels, as cd_tree expects.
+local function measurer(scale)
+    local cache = {}
+    return function(text, size, bold)
+        local key = string.format("%s|%d|%s", text, size, tostring(bold))
+        if cache[key] then return cache[key] end
+        local widget = text_widget(text, size, bold, false, scale)
+        local width = math.ceil(widget:getSize().w / scale)
+        widget:free()
+        cache[key] = width
+        return width
     end
 end
 
-local function media_panel(layers, state, zones)
-    local header_zone = zones.media_header
-    local title = VerticalGroup:new{ align = "left" }
-    header(title, format.media_title(state.media, state.media_disconnected), nil, header_zone.w)
-    table.insert(layers, at(title, header_zone.x, header_zone.y))
+local function corner(layers, state, screen_w, scale)
+    local side = math.floor(CORNER_SIDE * scale)
+    local exit = { x = screen_w - side, y = 0, w = side, h = side }
+    local refresh = { x = exit.x - side, y = 0, w = side, h = side }
+    local icon_side = math.floor(side * 0.3)
+    local close_icon = icon_widget(state.icon_dir .. "/close.svg", icon_side)
+    local refresh_icon = icon_widget(state.icon_dir .. "/refresh.svg", icon_side)
+    table.insert(layers, at(centered_in(close_icon, side, side), exit.x, exit.y))
+    table.insert(layers, at(centered_in(refresh_icon, side, side), refresh.x, refresh.y))
 
-    table.insert(layers, at(cover(state, zones.cover.w), zones.cover.x, zones.cover.y))
-
-    local text_zone = zones.track_text
-    local lines = VerticalGroup:new{ align = "left" }
-    if format.is_active(state.media) then
-        local track = format.text_or_nil(state.media.title)
-        local artist = format.text_or_nil(state.media.artist)
-        if track then
-            table.insert(lines, text(track, 19, true, text_zone.w))
-        end
-        if artist then
-            table.insert(lines, text(artist, 16, false, text_zone.w))
-        end
-    else
-        table.insert(lines, text("Nothing playing", 16, false, text_zone.w))
+    local right = refresh.x
+    if state.battery then
+        local battery = text_widget((state.battery_symbol or "") .. " " .. state.battery .. "%", CORNER_TEXT, false, false, scale)
+        local size = battery:getSize()
+        table.insert(layers, at(battery, right - size.w, (side - size.h) / 2))
     end
-    table.insert(layers, at(lines, text_zone.x, text_zone.y + (text_zone.h - lines:getSize().h) / 2))
+    if state.offline then
+        local mark = text_widget("PC offline", CORNER_TEXT, true, false, scale)
+        local size = mark:getSize()
+        local x = right - math.floor(BATTERY_W * scale) - size.w
+        table.insert(layers, at(mark, x, (side - size.h) / 2))
+    end
 
-    local idle = not format.is_active(state.media)
-    local playing = not idle and state.media.playing == true
-    table.insert(layers, button(state, zones.previous, "previous", idle))
-    table.insert(layers, button(state, zones.play_pause, playing and "pause" or "play", idle))
-    table.insert(layers, button(state, zones.next, "next", idle))
-    volume_row(layers, state, zones)
-end
-
-local function frost(area, amount)
-    return at(Frost:new{ dimen = Geom:new{ w = area.w, h = area.h }, amount = amount }, area.x, area.y)
+    local left = right - math.floor((BATTERY_W + OFFLINE_W) * scale)
+    return {
+        region = { x = left, y = 0, w = screen_w - left, h = side },
+        exit = exit,
+        refresh = refresh,
+    }
 end
 
 --[[
 state = {
-    now, date_table,
-    battery, battery_symbol,
-    snapshot, fetch_failed, server_error,     -- Claude usage
-    media, media_disconnected, cover,         -- music
-    background,                               -- full-screen picture, or nil
-    frost,                                    -- how strongly panels lighten the picture, 0 to 1
-    zones, icon_dir,
+    screen,             -- from cd_screen, or nil before the PC was ever reached
+    shown,              -- kind -> tree to draw (the reply's tree with tap predictions)
+    background, frost,  -- picture behind everything, and how strongly panels lighten it
+    battery, battery_symbol, offline,
+    now, date_fn,
+    image_for(key),     -- bitmap for "image:<src>", or nil while it loads
+    icon_file(name),    -- path of a downloaded icon, or nil
+    icon_dir,           -- the plugin's own icons, for the corner
 }
-Returns the widget tree and the refresh regions that go with it.
+Returns the widget tree, the refresh regions by name ("all", "corner" and each
+widget kind) and the tappable areas { rect, action, patch, disabled, kind }.
 ]]
 function view.build(state)
     local screen_w, screen_h = Screen:getWidth(), Screen:getHeight()
-    local zones = state.zones
-    local width = zones.content.w
-
-    local clock = VerticalGroup:new{ align = "left" }
-    table.insert(clock, left(text(format.clock(state.date_table), 44, true), width))
-    table.insert(clock, left(text(format.date_text(state.date_table), 17), width))
-
-    local claude = VerticalGroup:new{ align = "left" }
-    claude_block(claude, state, width)
-
-    local gap = scaled(8)
-    local content = VerticalGroup:new{
-        align = "left",
-        clock,
-        VerticalSpan:new{ width = gap },
-        claude,
-    }
-    local column = { clock = clock:getSize().h, gap = gap, claude = claude:getSize().h }
+    local scale = screen_w / REFERENCE_WIDTH
+    local ctx = { scale = scale, image_for = state.image_for, icon_file = state.icon_file }
+    local measure = measurer(scale)
 
     local layers = OverlapGroup:new{
         dimen = Geom:new{ w = screen_w, h = screen_h },
@@ -328,33 +239,72 @@ function view.build(state)
             width = screen_w,
             height = screen_h,
         })
-        local amount = state.frost or DEFAULT_FROST
-        table.insert(layers, frost(layout.top_panel(zones, content:getSize().h), amount))
-        table.insert(layers, frost(zones.media_panel, amount))
     end
 
-    table.insert(layers, at(content, zones.content.x, zones.content.y))
-    local corner_icon = math.floor(zones.exit.w * 0.3)
-    table.insert(layers, centered(icon(state, "close", corner_icon), zones.exit))
-    table.insert(layers, centered(icon(state, "refresh", corner_icon), zones.refresh))
-
-    if state.battery then
-        local battery = text((state.battery_symbol or "") .. " " .. state.battery .. "%", 17)
-        local size = battery:getSize()
-        local zone = zones.battery
-        table.insert(layers, at(battery, zone.x + zone.w - size.w, zone.y + (zone.h - size.h) / 2))
+    local regions = { all = { x = 0, y = 0, w = screen_w, h = screen_h } }
+    local buttons = {}
+    local widgets = state.screen and state.screen.widgets or {}
+    for _, w in ipairs(widgets) do
+        local rect = scaled_rect(w.rect, scale)
+        regions[w.kind] = rect
+        if state.background then
+            table.insert(layers, at(Frost:new{ dimen = Geom:new{ w = rect.w, h = rect.h }, amount = state.frost or DEFAULT_FROST }, rect.x, rect.y))
+        end
+        local inner = {
+            x = w.rect.x + PADDING,
+            y = w.rect.y + PADDING,
+            w = w.rect.w - 2 * PADDING,
+            h = w.rect.h - 2 * PADDING,
+        }
+        local root = state.shown[w.kind] or w.tree
+        for _, box in ipairs(tree.layout(root, inner, measure, state.now, state.date_fn)) do
+            local r = scaled_rect(box, scale)
+            local drawn = draw_box(box, r.w, r.h, ctx)
+            if drawn then
+                table.insert(layers, at(drawn, r.x, r.y))
+            end
+            if box.node.kind == "button" and type(box.node.action) == "string" then
+                table.insert(buttons, {
+                    rect = r,
+                    action = box.node.action,
+                    patch = box.node.patch,
+                    disabled = box.node.disabled == true,
+                    kind = w.kind,
+                })
+            end
+        end
     end
 
-    media_panel(layers, state, zones)
+    if #widgets == 0 then
+        local waiting = text_widget("Waiting for the PC", 45, true, false, scale)
+        local size = waiting:getSize()
+        table.insert(layers, at(waiting, (screen_w - size.w) / 2, (screen_h - size.h) / 2))
+    end
 
-    local tree = FrameContainer:new{
+    local controls = corner(layers, state, screen_w, scale)
+    regions.corner = controls.region
+    table.insert(buttons, 1, { rect = controls.exit, action = "exit" })
+    table.insert(buttons, 2, { rect = controls.refresh, action = "refresh" })
+
+    local root = FrameContainer:new{
         background = Blitbuffer.COLOR_WHITE,
         bordersize = 0,
         padding = 0,
         margin = 0,
         layers,
     }
-    return tree, layout.regions(screen_w, screen_h, zones, column)
+    return root, regions, buttons
+end
+
+function view.hit(buttons, x, y)
+    if type(x) ~= "number" or type(y) ~= "number" then return nil end
+    for _, b in ipairs(buttons) do
+        local r = b.rect
+        if x >= r.x and x < r.x + r.w and y >= r.y and y < r.y + r.h then
+            return b
+        end
+    end
+    return nil
 end
 
 return view

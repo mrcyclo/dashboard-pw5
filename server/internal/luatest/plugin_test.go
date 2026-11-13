@@ -81,10 +81,6 @@ func TestScreenSpec(t *testing.T) {
 	runSpec(t, "screen_spec.lua")
 }
 
-func TestLayoutSpec(t *testing.T) {
-	runSpec(t, "layout_spec.lua")
-}
-
 func TestAsyncSpec(t *testing.T) {
 	runSpec(t, "async_spec.lua")
 }
@@ -94,8 +90,8 @@ func TestPluginFilesCompile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(files) < 6 {
-		t.Fatalf("expected the six plugin files, found %d", len(files))
+	if len(files) < 10 {
+		t.Fatalf("expected the ten plugin files, found %d", len(files))
 	}
 	L := lua.NewState()
 	defer L.Close()
