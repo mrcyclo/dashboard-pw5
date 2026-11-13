@@ -71,11 +71,10 @@ const (
 
 // Display settings as served by /kindle.json; see config.Display on the PC.
 type display struct {
-	PanelLighten         float64 `json:"panel_lighten"`
-	FullRefreshMinutes   int     `json:"full_refresh_minutes"`
-	MediaIntervalSeconds int     `json:"media_interval_seconds"`
-	Frontlight           int     `json:"frontlight"`
-	Warmth               int     `json:"warmth"`
+	FullRefreshMinutes   int `json:"full_refresh_minutes"`
+	MediaIntervalSeconds int `json:"media_interval_seconds"`
+	Frontlight           int `json:"frontlight"`
+	Warmth               int `json:"warmth"`
 }
 
 type fetched struct {
@@ -171,7 +170,7 @@ func newLoop(c Config) *loop {
 		shown:      map[string]tree.Node{},
 		pending:    map[string]*patch.Pending{},
 		chooser:    discovery.NewChooser(loadState(c.Dir)),
-		settings:   display{PanelLighten: 0.7, MediaIntervalSeconds: 5, Frontlight: -1, Warmth: -1},
+		settings:   display{MediaIntervalSeconds: 5, Frontlight: -1, Warmth: -1},
 		lightsDone: [2]int{-1, -1},
 		assets:     newAssetStore(filepath.Join(c.Dir, "cache", "icons")),
 		results:    make(chan fetched, 16),
@@ -247,7 +246,6 @@ func (l *loop) draw(names []string, full, flash bool) {
 		Screen:     l.scr,
 		Shown:      l.shown,
 		Background: l.background,
-		Frost:      l.settings.PanelLighten,
 		Battery:    l.battery,
 		HasBattery: l.hasBattery,
 		Offline:    l.offline && l.scr != nil,

@@ -1,6 +1,7 @@
 package widget
 
 import (
+	"strings"
 	"testing"
 
 	"claudedash/internal/grid"
@@ -22,7 +23,7 @@ func TestBuildScreenSkipsHiddenAndUnknown(t *testing.T) {
 		t.Fatalf("%+v", s.Widgets)
 	}
 	for _, w := range s.Widgets {
-		if w.Hash != Hash(w.Tree) || w.Tree == nil {
+		if !strings.HasPrefix(w.Hash, Hash(w.Tree)) || w.Tree == nil {
 			t.Errorf("%s: hash %q", w.Kind, w.Hash)
 		}
 	}
@@ -72,5 +73,17 @@ func TestBuildScreenPassesOptions(t *testing.T) {
 	s := BuildScreen(Default(nil), testLayout(), d)
 	if s.Widgets[0].Tree["align"] != "end" {
 		t.Fatalf("%v", s.Widgets[0].Tree)
+	}
+}
+
+func TestBuildScreenGivesEachWidgetItsLighten(t *testing.T) {
+	d := Data{Now: testNow, Lighten: map[string]float64{"clock": 0.2, "claude": 0.9}}
+	s := BuildScreen(Default(nil), testLayout(), d)
+	if s.Widgets[0].Lighten != 0.2 || s.Widgets[1].Lighten != 0.9 {
+		t.Fatalf("%v %v", s.Widgets[0].Lighten, s.Widgets[1].Lighten)
+	}
+	d.Lighten["clock"] = 0.3
+	if again := BuildScreen(Default(nil), testLayout(), d); again.Widgets[0].Hash == s.Widgets[0].Hash {
+		t.Fatal("the Kindle must redraw a widget whose panel changed")
 	}
 }

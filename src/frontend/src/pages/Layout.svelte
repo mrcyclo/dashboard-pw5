@@ -1,6 +1,6 @@
 <script>
-  import { AlignCenter, AlignLeft, AlignRight, ChartColumn, Clock, LayoutGrid, Music } from '@lucide/svelte'
-  import { MoveWidget, SetWidgetOption, SetWidgetSize } from '../../bindings/claudedash/internal/desk/app'
+  import { AlignCenter, AlignLeft, AlignRight, ChartColumn, Clock, LayoutGrid, Music, RefreshCw } from '@lucide/svelte'
+  import { MoveWidget, RefreshKindle, SetWidgetLighten, SetWidgetOption, SetWidgetSize } from '../../bindings/claudedash/internal/desk/app'
   import { app, call } from '../lib/store.svelte.js'
   import { canShow } from '../lib/grid.js'
   import KindleScreen from '../lib/KindleScreen.svelte'
@@ -14,6 +14,8 @@
   let background = $derived(app.state.background)
   let view = $derived({ x: background.focus_x, y: background.focus_y, zoom: background.zoom })
   let selected = $state(null)
+  // Transparency sliders move the preview while dragged, and save on release.
+  let lightenDrafts = $state({})
 
   const sizeLabel = (size) => (size === 'none' ? 'None' : size.replace('x', '×'))
   const placementOf = (kind) => widgets.layout.find((p) => p.kind === kind)
@@ -30,6 +32,17 @@
     call(() => SetWidgetOption(kind, key, value))
   }
 
+  const transparency = (lighten) => 100 - Math.round(lighten * 100)
+  const lightenOf = (kind) => lightenDrafts[kind] ?? widgets.lighten?.[kind] ?? 0.7
+
+  async function commitLighten(kind) {
+    const value = lightenDrafts[kind]
+    if (value === undefined) return
+    await call(() => SetWidgetLighten(kind, value))
+    const { [kind]: _, ...rest } = lightenDrafts
+    lightenDrafts = rest
+  }
+
   function move(kind, col, row) {
     selected = kind
     const current = placementOf(kind)
@@ -39,7 +52,17 @@
 </script>
 
 <header class="mb-5">
-  <h1 class="text-2xl font-semibold">Layout</h1>
+  <div class="flex items-center gap-3">
+    <h1 class="text-2xl font-semibold">Layout</h1>
+    <button
+      class="btn btn-sm ml-auto gap-1.5"
+      title="The Kindle flashes and redraws everything on its next poll"
+      onclick={() => call(RefreshKindle, 'Sent. The Kindle will refresh in a few seconds')}
+    >
+      <RefreshCw size={15} />
+      Refresh Kindle
+    </button>
+  </div>
   <p class="text-sm text-base-content/60">Which widgets the Kindle shows, how big, and where. Drag a widget to move it</p>
 </header>
 
@@ -50,7 +73,7 @@
       mode="layout"
       focus={view}
       zoom={view.zoom}
-      lighten={app.state.display.panel_lighten}
+      {lightenDrafts}
       {selected}
       onselect={(kind) => (selected = kind)}
       onmove={move}
@@ -118,6 +141,24 @@
                 </div>
               {/each}
             </div>
+            {#if current !== 'none'}
+              <div class="mt-2.5 flex items-center gap-3" role="presentation" onclick={(event) => event.stopPropagation()}>
+                <span class="w-[150px] shrink-0 text-sm text-base-content/70">Panel transparency</span>
+                <input
+                  type="range"
+                  class="range range-primary range-xs flex-1"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={transparency(lightenOf(kind.kind))}
+                  disabled={!background.set}
+                  title={background.set ? 'Higher shows more of the picture and makes text harder to read' : 'Only applies once a background is chosen on the Screen page'}
+                  oninput={(e) => (lightenDrafts = { ...lightenDrafts, [kind.kind]: (100 - Number(e.currentTarget.value)) / 100 })}
+                  onchange={() => commitLighten(kind.kind)}
+                />
+                <span class="w-[40px] text-right text-sm text-base-content/80">{transparency(lightenOf(kind.kind))}%</span>
+              </div>
+            {/if}
           </div>
         {/each}
       </div>

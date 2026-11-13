@@ -137,3 +137,13 @@ func TestStaleIcons(t *testing.T) {
 		t.Fatal("nothing is removed before the PC listed its icons")
 	}
 }
+
+func TestWidgetLighten(t *testing.T) {
+	s, _, err := Accept(nil, reply(t, "L", []any{widget("clock", "h", map[string]any{"lighten": 0.25}), widget("media", "h", nil)}, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Widgets[0].Lighten != 0.25 || s.Widgets[1].Lighten != DefaultLighten {
+		t.Fatalf("%v %v", s.Widgets[0].Lighten, s.Widgets[1].Lighten)
+	}
+}

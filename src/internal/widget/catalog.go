@@ -18,6 +18,8 @@ type Data struct {
 	Media media.State
 	// Options holds each kind's chosen option values; see Configurable.
 	Options map[string]map[string]string
+	// Lighten holds how strongly each kind's panel lightens the background.
+	Lighten map[string]float64
 }
 
 // Option returns the value chosen for a kind's option, or fallback when none was.

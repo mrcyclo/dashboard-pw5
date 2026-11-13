@@ -20,7 +20,12 @@ type Widget struct {
 	// Hash is "" when the PC sent none; such a widget is redrawn on every reply.
 	Hash string
 	Tree tree.Node
+	// Lighten is how strongly the panel lightens the background picture, 0 to 1.
+	Lighten float64
 }
+
+// DefaultLighten is used for a widget sent without its own value.
+const DefaultLighten = 0.7
 
 type Screen struct {
 	Layout     string
@@ -73,7 +78,11 @@ func widgets(list []any) []Widget {
 		if kind == "" || !okRect || !okTree {
 			continue
 		}
-		out = append(out, Widget{Kind: kind, Rect: r, Hash: text(w["hash"]), Tree: t})
+		lighten, ok := w["lighten"].(float64)
+		if !ok || lighten < 0 || lighten > 1 {
+			lighten = DefaultLighten
+		}
+		out = append(out, Widget{Kind: kind, Rect: r, Hash: text(w["hash"]), Tree: t, Lighten: lighten})
 	}
 	return out
 }

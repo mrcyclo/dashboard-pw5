@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"claudedash/internal/grid"
 )
@@ -18,6 +19,8 @@ type PlacedWidget struct {
 	// Hash changes with the tree, so the Kindle redraws only widgets that changed.
 	Hash string `json:"hash"`
 	Tree Node   `json:"tree"`
+	// Lighten is how strongly the panel lightens the background picture, 0 to 1.
+	Lighten float64 `json:"lighten"`
 }
 
 // Screen is the reply to the Kindle's poll.
@@ -43,11 +46,14 @@ func BuildScreen(c *Catalog, layout []grid.Placement, d Data) Screen {
 			continue
 		}
 		tree := kind.Build(p.Size, d)
+		lighten := d.Lighten[p.Kind]
 		s.Widgets = append(s.Widgets, PlacedWidget{
 			Kind: p.Kind,
 			Rect: grid.CellRect(p.Col, p.Row, size),
-			Hash: Hash(tree),
-			Tree: tree,
+			// The panel is part of what the Kindle has to redraw.
+			Hash:    fmt.Sprintf("%s-%.2f", Hash(tree), lighten),
+			Tree:    tree,
+			Lighten: lighten,
 		})
 		shown = append(shown, p)
 		collectIcons(tree, s.Icons)

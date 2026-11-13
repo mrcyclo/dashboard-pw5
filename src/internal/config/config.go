@@ -36,13 +36,16 @@ const (
 	MaxLight = 24
 	// Earlier versions stored these as percentages.
 	legacyMaxLight = 100
+
+	// DefaultLighten is how strongly a widget's panel lightens the background
+	// picture behind it, 0 to 1, until the user picks another value.
+	DefaultLighten = 0.7
 )
 
 // Display holds what the Kindle fetches from the PC to decide how to draw.
 type Display struct {
-	PanelLighten         float64 `json:"panel_lighten"`
-	FullRefreshMinutes   int     `json:"full_refresh_minutes"`
-	MediaIntervalSeconds int     `json:"media_interval_seconds"`
+	FullRefreshMinutes   int `json:"full_refresh_minutes"`
+	MediaIntervalSeconds int `json:"media_interval_seconds"`
 	// Levels of the Kindle's own scale, or LightUnset.
 	Frontlight int `json:"frontlight"`
 	Warmth     int `json:"warmth"`
@@ -66,10 +69,20 @@ type Config struct {
 	Background   Background `json:"background"`
 	// Where each widget kind sits on the Kindle; see grid.Placement.
 	Layout []grid.Placement `json:"layout"`
+	// Per widget kind, how strongly its panel lightens the background; see Lighten.
+	WidgetLighten map[string]float64 `json:"widget_lighten,omitempty"`
 	// Per widget kind, the options it offers (such as "align") and their chosen values.
 	WidgetOptions map[string]map[string]string `json:"widget_options,omitempty"`
 	// PCID tells this PC apart from others on the LAN, so the Kindle reconnects to the same one.
 	PCID string `json:"pc_id,omitempty"`
+}
+
+// Lighten is the widget's panel lightening, or DefaultLighten when never set.
+func (c Config) Lighten(kind string) float64 {
+	if v, ok := c.WidgetLighten[kind]; ok {
+		return v
+	}
+	return DefaultLighten
 }
 
 // EnsurePCID gives the config a random id if it has none, and reports whether it did.
@@ -90,7 +103,6 @@ func Default() Config {
 		// This is a background service for the Kindle, so closing the window should not stop it.
 		CloseToTray: true,
 		Display: Display{
-			PanelLighten:         0.7,
 			FullRefreshMinutes:   0,
 			MediaIntervalSeconds: 5,
 			Frontlight:           LightUnset,
@@ -133,8 +145,7 @@ func ValidLayout(p []grid.Placement) bool {
 // know when to fetch the settings again.
 func (d Display) Hash() string {
 	text := fmt.Sprintf(
-		"%.4f|%d|%d|%d|%d",
-		d.PanelLighten,
+		"%d|%d|%d|%d",
 		d.FullRefreshMinutes,
 		d.MediaIntervalSeconds,
 		d.Frontlight,
@@ -151,8 +162,10 @@ func (c Config) Validate() error {
 	if !slices.Contains(UsageIntervals, c.CacheSeconds) {
 		return fmt.Errorf("config: cache_seconds %d is not one of %v", c.CacheSeconds, UsageIntervals)
 	}
-	if c.Display.PanelLighten < 0 || c.Display.PanelLighten > 1 {
-		return fmt.Errorf("config: panel_lighten %v must be between 0 and 1", c.Display.PanelLighten)
+	for kind, v := range c.WidgetLighten {
+		if !inUnit(v) {
+			return fmt.Errorf("config: widget_lighten of %s, %v, must be between 0 and 1", kind, v)
+		}
 	}
 	if !slices.Contains(FullRefreshTimes, c.Display.FullRefreshMinutes) {
 		return fmt.Errorf("config: full_refresh_minutes %d is not one of %v", c.Display.FullRefreshMinutes, FullRefreshTimes)
@@ -206,12 +219,29 @@ func Load(path string) (Config, error) {
 	if c.Layout == nil || !ValidLayout(c.Layout) {
 		c.Layout = DefaultLayout()
 	}
+	moveLegacyLighten(&c, data)
 	c.Display.Frontlight = levelFromLegacy(c.Display.Frontlight)
 	c.Display.Warmth = levelFromLegacy(c.Display.Warmth)
 	if err := c.Validate(); err != nil {
 		return Default(), err
 	}
 	return c, nil
+}
+
+// moveLegacyLighten gives every widget the one panel transparency earlier versions had.
+func moveLegacyLighten(c *Config, data []byte) {
+	var legacy struct {
+		Display struct {
+			PanelLighten *float64 `json:"panel_lighten"`
+		} `json:"display"`
+	}
+	if c.WidgetLighten != nil || json.Unmarshal(data, &legacy) != nil || legacy.Display.PanelLighten == nil {
+		return
+	}
+	c.WidgetLighten = map[string]float64{}
+	for _, p := range c.Layout {
+		c.WidgetLighten[p.Kind] = *legacy.Display.PanelLighten
+	}
 }
 
 // levelFromLegacy converts a value too large to be a level, which can only be

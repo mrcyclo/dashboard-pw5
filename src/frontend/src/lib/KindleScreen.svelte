@@ -16,7 +16,8 @@
     mode = 'background',
     focus,
     zoom,
-    lighten,
+    // Slider values not saved yet, by widget kind; they win over what the PC sent.
+    lightenDrafts = {},
     onfocus,
     onzoom,
     selected = null,
@@ -172,7 +173,7 @@
         <div class="pointer-events-none absolute inset-0" style={offset(placed)}>
           <div
             class="absolute {mode === 'layout' ? 'pointer-events-auto cursor-move' : ''} {selected === placed.kind ? 'outline-[10px] outline-[#ff9900] outline-solid' : ''}"
-            style="{box(placed.rect)};{background.set ? `background: rgba(255, 255, 255, ${lighten})` : ''}"
+            style="{box(placed.rect)};{background.set ? `background: rgba(255, 255, 255, ${lightenDrafts[placed.kind] ?? placed.lighten})` : ''}"
             role="button"
             tabindex="-1"
             aria-label={placed.kind}

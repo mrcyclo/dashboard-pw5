@@ -50,8 +50,6 @@ type State struct {
 	// Shown holds each widget kind's tree with tap predictions applied.
 	Shown      map[string]tree.Node
 	Background *image.Gray
-	// Frost is how strongly widget panels lighten the background, 0 to 1.
-	Frost      float64
 	Battery    int
 	HasBattery bool
 	Offline    bool
@@ -104,13 +102,13 @@ func Draw(dst *image.Gray, st State, f Fonts, a Assets) (map[string]image.Rectan
 		return regions, nil, Corner{}
 	}
 	if st.Background != nil {
-		var panels []image.Rectangle
+		var panels []panel
 		if st.Screen != nil {
 			for _, w := range st.Screen.Widgets {
-				panels = append(panels, w.Rect)
+				panels = append(panels, panel{w.Rect, w.Lighten})
 			}
 		}
-		xdraw.Draw(dst, full, backdrop(st.Background, st.Frost, panels), image.Point{}, xdraw.Src)
+		xdraw.Draw(dst, full, backdrop(st.Background, panels), image.Point{}, xdraw.Src)
 	}
 
 	var buttons []Button

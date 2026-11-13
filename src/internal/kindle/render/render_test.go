@@ -78,17 +78,23 @@ func TestDimTextIsNotBlack(t *testing.T) {
 	}
 }
 
-func TestFrostLightensOnlyWidgets(t *testing.T) {
+func TestEachPanelLightensByItsOwnAmount(t *testing.T) {
 	img := canvas()
-	st := state(widget("w", image.Rect(48, 48, 610, 228), tree.Node{"kind": "col"}))
+	half := widget("half", image.Rect(48, 48, 610, 228), tree.Node{"kind": "col"})
+	half.Lighten = 0.5
+	none := widget("none", image.Rect(626, 244, 1188, 424), tree.Node{"kind": "col"})
+	none.Lighten = 0
+	st := state(half, none)
 	st.Background = image.NewGray(image.Rect(0, 0, Width, Height))
-	st.Frost = 0.5
 	Draw(img, st, testFonts(t), noAssets{})
 	if got := blockMean(img, image.Rect(100, 100, 132, 132)); got < 120 || got > 135 {
-		t.Errorf("inside the widget %v, want about 128", got)
+		t.Errorf("inside the half panel %v, want about 128", got)
+	}
+	if got := img.GrayAt(700, 300).Y; got != 0 {
+		t.Errorf("a see-through panel leaves the picture: %d", got)
 	}
 	if got := img.GrayAt(100, 800).Y; got != 0 {
-		t.Errorf("outside the widget %d, want the picture's 0", got)
+		t.Errorf("outside the widgets %d, want the picture's 0", got)
 	}
 }
 

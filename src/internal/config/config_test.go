@@ -23,7 +23,7 @@ func TestDefaults(t *testing.T) {
 	c := Default()
 	want := Config{
 		Port: 8377, CacheSeconds: 300, CloseToTray: true,
-		Display:    Display{PanelLighten: 0.7, FullRefreshMinutes: 0, MediaIntervalSeconds: 5, Frontlight: -1, Warmth: -1},
+		Display:    Display{FullRefreshMinutes: 0, MediaIntervalSeconds: 5, Frontlight: -1, Warmth: -1},
 		Background: Background{FocusX: 0.5, FocusY: 0.5, Zoom: 1},
 		Layout:     DefaultLayout(),
 	}
@@ -81,8 +81,8 @@ func TestValidate(t *testing.T) {
 		func(c *Config) { c.Port = 65536 },
 		func(c *Config) { c.CacheSeconds = 120 },
 		func(c *Config) { c.CacheSeconds = 301 },
-		func(c *Config) { c.Display.PanelLighten = -0.1 },
-		func(c *Config) { c.Display.PanelLighten = 1.1 },
+		func(c *Config) { c.WidgetLighten = map[string]float64{"clock": -0.1} },
+		func(c *Config) { c.WidgetLighten = map[string]float64{"clock": 1.1} },
 		func(c *Config) { c.Display.FullRefreshMinutes = 20 },
 		func(c *Config) { c.Display.MediaIntervalSeconds = 4 },
 		func(c *Config) { c.Background.FocusX = -0.01 },
@@ -99,7 +99,7 @@ func TestValidate(t *testing.T) {
 	}
 	good := Default()
 	good.Port, good.CacheSeconds = 1024, 1800
-	good.Display = Display{PanelLighten: 1, FullRefreshMinutes: 60, MediaIntervalSeconds: 30}
+	good.Display = Display{FullRefreshMinutes: 60, MediaIntervalSeconds: 30}
 	good.Background = Background{Path: `C:\pictures\a.jpg`, FocusX: 0, FocusY: 1, Zoom: 5}
 	if err := good.Validate(); err != nil {
 		t.Fatalf("%+v should be valid: %v", good, err)
@@ -110,7 +110,7 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 	c := Default()
 	c.Port, c.CacheSeconds, c.CloseToTray = 9100, 900, false
-	c.Display = Display{PanelLighten: 0.85, FullRefreshMinutes: 30, MediaIntervalSeconds: 10}
+	c.Display = Display{FullRefreshMinutes: 30, MediaIntervalSeconds: 10}
 	c.Background = Background{Path: `C:\bilder\grün.png`, FocusX: 0.2, FocusY: 0.9, Zoom: 2.5}
 	if err := Save(path, c); err != nil {
 		t.Fatal(err)
@@ -144,7 +144,7 @@ func TestDisplayHash(t *testing.T) {
 	if len(a.Hash()) != 12 || a.Hash() != b.Hash() {
 		t.Fatalf("hash %q %q", a.Hash(), b.Hash())
 	}
-	b.PanelLighten = 0.71
+	b.Frontlight = 3
 	c := a
 	c.MediaIntervalSeconds = 10
 	d := a
@@ -362,5 +362,33 @@ func TestEnsurePCID(t *testing.T) {
 	EnsurePCID(&other)
 	if other.PCID == first {
 		t.Fatal("each PC gets its own id")
+	}
+}
+
+// The one transparency of earlier versions becomes every widget's own.
+func TestLoadMovesPanelTransparencyToEachWidget(t *testing.T) {
+	c, err := Load(write(t, `{"display":{"panel_lighten":0.4,"media_interval_seconds":5}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range c.Layout {
+		if c.Lighten(p.Kind) != 0.4 {
+			t.Errorf("%s: %v", p.Kind, c.Lighten(p.Kind))
+		}
+	}
+	if Default().Lighten("clock") != DefaultLighten {
+		t.Fatal("a widget never set uses the default")
+	}
+}
+
+func TestWidgetLightenMustBeInRange(t *testing.T) {
+	c := Default()
+	c.WidgetLighten = map[string]float64{"clock": 1.2}
+	if c.Validate() == nil {
+		t.Fatal("above 1")
+	}
+	c.WidgetLighten = map[string]float64{"clock": 0}
+	if c.Validate() != nil {
+		t.Fatal("0 is a fully see-through panel")
 	}
 }

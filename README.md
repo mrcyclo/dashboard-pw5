@@ -33,8 +33,8 @@ The window has four pages:
 | Page | Used for |
 |---|---|
 | Overview | Claude usage, token status, the current track and whether the Kindle is connected |
-| Layout | Which widgets the Kindle shows, their size and where they sit on the Kindle's grid |
-| Screen | Background picture with zoom and position, panel transparency, front light and warmth, periodic and manual full refresh, polling interval |
+| Layout | Which widgets the Kindle shows, their size, their panel transparency and where they sit on the Kindle's grid, and a button to refresh the Kindle |
+| Screen | Background picture with zoom and position, front light and warmth, periodic and manual full refresh, polling interval |
 | Settings | Port, usage polling interval, start with Windows, minimize to tray on close |
 | Logs | The latest 500 log lines, filtered by category |
 
@@ -99,7 +99,7 @@ Every 2 seconds the PC broadcasts a small UDP announcement on port 8378 with its
 | `GET /icons/<name>.svg` | An icon named by a tree |
 | `GET /media/art.png` | Grayscale cover art, fitted to 400 x 400 |
 | `GET /background.png?w=W&h=H` | The background picture, cropped and in grayscale |
-| `GET /kindle.json` | Display settings: panel transparency, light, warmth, refresh |
+| `GET /kindle.json` | Display settings: light, warmth, refresh |
 
 Volume is the master volume of the default output device and changes by 5 per tap.
 
@@ -107,7 +107,7 @@ Volume is the master volume of the default output device and changes by 5 per ta
 
 On the Screen page of the window, choose a JPG or PNG picture. The PC crops it to fill the Kindle screen without stretching it and converts it to grayscale. Drag the picture in the preview to choose which part is kept, and use the zoom slider or the mouse wheel (100% to 500%) to show only part of it. The Kindle downloads the result within a few seconds and keeps it, so the background stays when the PC is off.
 
-Each widget sits on its own panel that lightens the picture behind its text; the `Panel transparency` slider sets how much. With a background picture, e-ink updates flash more easily than on a white background.
+Each widget sits on its own panel that lightens the picture behind its text; each widget's `Panel transparency` slider on the Layout page sets how much. With a background picture, e-ink updates flash more easily than on a white background.
 
 ### Light and refresh
 

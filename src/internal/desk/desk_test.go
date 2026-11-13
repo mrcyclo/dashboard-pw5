@@ -245,7 +245,7 @@ func TestRefreshUsage(t *testing.T) {
 func TestSaveDisplay(t *testing.T) {
 	h := newHarness(t)
 	before := h.app.Display().Hash()
-	want := config.Display{PanelLighten: 0.85, FullRefreshMinutes: 30, MediaIntervalSeconds: 10}
+	want := config.Display{FullRefreshMinutes: 30, MediaIntervalSeconds: 10}
 	s, err := h.app.SaveDisplay(want)
 	if err != nil || s.Display != want || h.app.Display() != want {
 		t.Fatalf("state %+v err %v", s.Display, err)
@@ -264,9 +264,9 @@ func TestSaveDisplay(t *testing.T) {
 func TestSaveDisplayRejectsInvalid(t *testing.T) {
 	h := newHarness(t)
 	for _, bad := range []config.Display{
-		{PanelLighten: 1.5, FullRefreshMinutes: 0, MediaIntervalSeconds: 5},
-		{PanelLighten: 0.7, FullRefreshMinutes: 7, MediaIntervalSeconds: 5},
-		{PanelLighten: 0.7, FullRefreshMinutes: 0, MediaIntervalSeconds: 1},
+		{FullRefreshMinutes: 0, MediaIntervalSeconds: 5, Frontlight: 99, Warmth: config.LightUnset},
+		{FullRefreshMinutes: 7, MediaIntervalSeconds: 5, Frontlight: config.LightUnset, Warmth: config.LightUnset},
+		{FullRefreshMinutes: 0, MediaIntervalSeconds: 1, Frontlight: config.LightUnset, Warmth: config.LightUnset},
 	} {
 		s, err := h.app.SaveDisplay(bad)
 		if err == nil || s.Display != config.Default().Display {
@@ -508,7 +508,7 @@ func TestSaveSettingsAutostartFailureChangesNothing(t *testing.T) {
 
 func TestSaveSettingsKeepsOtherPagesChanges(t *testing.T) {
 	h := newHarness(t)
-	display := config.Display{PanelLighten: 0.85, FullRefreshMinutes: 30, MediaIntervalSeconds: 10}
+	display := config.Display{FullRefreshMinutes: 30, MediaIntervalSeconds: 10}
 	h.app.SaveDisplay(display)
 	h.pick = picture(t, h.dir, "a.png")
 	h.app.ChooseBackground()
@@ -586,11 +586,11 @@ func TestSourceHashIgnoresFocus(t *testing.T) {
 func TestSaveDisplayWriteFailureIsNotCalledInvalid(t *testing.T) {
 	h := newHarness(t)
 	h.app.deps.ConfigPath = filepath.Join(h.dir, "missing-folder", "config.json")
-	_, err := h.app.SaveDisplay(config.Display{PanelLighten: 0.5, FullRefreshMinutes: 0, MediaIntervalSeconds: 5})
+	_, err := h.app.SaveDisplay(config.Display{FullRefreshMinutes: 0, MediaIntervalSeconds: 5})
 	if err == nil || strings.Contains(err.Error(), "not valid") {
 		t.Fatalf("got %v", err)
 	}
-	if h.app.Display().PanelLighten != 0.7 {
+	if h.app.Display().Frontlight != config.LightUnset {
 		t.Fatal("an unsaved change must not take effect")
 	}
 }
@@ -940,5 +940,30 @@ func TestSetWidgetOption(t *testing.T) {
 func TestWidgetOptionsStartAtDefaults(t *testing.T) {
 	if got := newHarness(t).app.GetState().Widgets.Options["clock"]["align"]; got != "left" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestSetWidgetLighten(t *testing.T) {
+	h := newHarness(t)
+	if got := h.app.GetState().Widgets.Lighten["clock"]; got != config.DefaultLighten {
+		t.Fatalf("starts at the default: %v", got)
+	}
+	s, err := h.app.SetWidgetLighten("clock", 0.25)
+	if err != nil || s.Widgets.Lighten["clock"] != 0.25 || s.Widgets.Lighten["media"] != config.DefaultLighten {
+		t.Fatalf("%+v %v", s.Widgets.Lighten, err)
+	}
+	if h.saved(t).WidgetLighten["clock"] != 0.25 {
+		t.Fatal("not saved")
+	}
+	if s.Widgets.Screen.Widgets[0].Lighten != 0.25 {
+		t.Fatal("the Kindle gets the new transparency")
+	}
+	for _, c := range []struct {
+		kind  string
+		value float64
+	}{{"clock", 1.5}, {"clock", -0.1}, {"weather", 0.5}} {
+		if _, err := h.app.SetWidgetLighten(c.kind, c.value); err == nil {
+			t.Errorf("%v accepted", c)
+		}
 	}
 }

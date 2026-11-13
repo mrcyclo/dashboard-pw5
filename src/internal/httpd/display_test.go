@@ -25,7 +25,7 @@ func callDisplay(m MediaSource, d DisplaySource, method, path string) *httptest.
 }
 
 func TestKindleJSON(t *testing.T) {
-	d := &fakeDisplay{display: config.Display{PanelLighten: 0.85, FullRefreshMinutes: 30, MediaIntervalSeconds: 10}}
+	d := &fakeDisplay{display: config.Display{FullRefreshMinutes: 30, MediaIntervalSeconds: 10}}
 	rec := callDisplay(nil, d, http.MethodGet, "/kindle.json")
 	if rec.Code != 200 || rec.Header().Get("Content-Type") != "application/json" {
 		t.Fatalf("code %d type %q", rec.Code, rec.Header().Get("Content-Type"))
@@ -34,7 +34,7 @@ func TestKindleJSON(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 5 || got["panel_lighten"] != 0.85 || got["full_refresh_minutes"] != 30 || got["media_interval_seconds"] != 10 {
+	if len(got) != 4 || got["full_refresh_minutes"] != 30 || got["media_interval_seconds"] != 10 {
 		t.Fatalf("got %v", got)
 	}
 }

@@ -22,10 +22,6 @@
   let background = $derived(app.state.background)
   let display = $derived(app.state.display)
 
-  // The slider moves the preview while it is dragged, and saves on release.
-  let draft = $state(null)
-  let lighten = $derived(draft ?? display.panel_lighten)
-
   // A released drag or a zoom is shown at once and kept until the backend
   // confirms it, so the picture does not jump back to the old crop in between.
   let pendingView = $state(null)
@@ -44,13 +40,6 @@
 
   function saveDisplay(change) {
     return call(() => SaveDisplay({ ...display, ...change }))
-  }
-
-  async function commitLighten() {
-    if (draft === null) return
-    const value = draft
-    await saveDisplay({ panel_lighten: value })
-    draft = null
   }
 
   async function commitView(next) {
@@ -99,7 +88,6 @@
     <KindleScreen
       focus={view}
       zoom={view.zoom}
-      {lighten}
       onfocus={(next) => commitView({ ...next, zoom: view.zoom })}
       onzoom={wheelZoom}
     />
@@ -152,28 +140,7 @@
     <section>
       <div class="mb-1.5 px-1 text-xs text-base-content/60">Display</div>
       <div class="cd-card overflow-hidden">
-        <div class="px-4 py-3">
-          <div class="flex items-baseline justify-between">
-            <span class="font-semibold">Panel transparency</span>
-            <span class="text-sm text-base-content/80">{100 - Math.round(lighten * 100)}%</span>
-          </div>
-          <input
-            type="range"
-            class="range range-primary range-xs mt-2 w-full"
-            min="0"
-            max="100"
-            step="5"
-            value={100 - Math.round(lighten * 100)}
-            disabled={!background.set}
-            oninput={(e) => (draft = (100 - Number(e.currentTarget.value)) / 100)}
-            onchange={commitLighten}
-          />
-          <div class="mt-1 text-sm text-base-content/60">
-            {background.set ? 'Higher shows more of the picture and makes text harder to read' : 'Only applies once a background is chosen'}
-          </div>
-        </div>
-
-        <label class="flex items-center gap-3 border-t border-white/[.06] px-4 py-3">
+        <label class="flex items-center gap-3 px-4 py-3">
           <div class="flex-1">
             <div class="font-semibold">Periodic full refresh</div>
             <div class="text-sm text-base-content/60">The screen flashes once to clear e-ink ghosting</div>

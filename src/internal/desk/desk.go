@@ -113,6 +113,8 @@ type WidgetsState struct {
 	Layout []grid.Placement `json:"layout"`
 	// Options has every kind's options with their current values, defaults filled in.
 	Options map[string]map[string]string `json:"options"`
+	// Lighten has every kind's panel lightening, 0 to 1, defaults filled in.
+	Lighten map[string]float64 `json:"lighten"`
 	// Screen is exactly what the Kindle is sent, for the window's preview.
 	Screen widget.Screen `json:"screen"`
 }
@@ -303,11 +305,13 @@ func (a *App) GetState() State {
 		Catalog: a.catalog(),
 		Layout:  knownKinds(a.deps.Widgets, cfg.Layout),
 		Options: a.options(cfg),
+		Lighten: a.lighten(cfg),
 		Screen: widget.BuildScreen(a.deps.Widgets, cfg.Layout, widget.Data{
 			Now:     now,
 			Usage:   snapshot,
 			Media:   state.Media,
 			Options: cfg.WidgetOptions,
+			Lighten: a.lighten(cfg),
 		}),
 	}
 	a.mu.Lock()
@@ -452,8 +456,7 @@ func (a *App) SaveDisplay(d config.Display) (State, error) {
 	}
 	a.deps.Log.Add(
 		applog.Kindle,
-		"display settings changed: transparency %.0f%%, full refresh every %d min, media poll every %d s, front light %d, warmth %d",
-		(1-d.PanelLighten)*100,
+		"display settings changed: full refresh every %d min, media poll every %d s, front light %d, warmth %d",
 		d.FullRefreshMinutes,
 		d.MediaIntervalSeconds,
 		d.Frontlight,
@@ -607,9 +610,10 @@ func (a *App) Screen(battery int, ok bool) widget.Screen {
 	}
 	layout := a.config.Layout
 	options := a.config.WidgetOptions
+	lighten := a.lighten(a.config)
 	a.mu.Unlock()
 
-	d := widget.Data{Now: a.deps.Now(), Usage: a.deps.Usage.Latest(), Options: options}
+	d := widget.Data{Now: a.deps.Now(), Usage: a.deps.Usage.Latest(), Options: options, Lighten: lighten}
 	if a.deps.Media != nil {
 		d.Media = a.deps.Media.Snapshot()
 	}
@@ -722,6 +726,39 @@ func (a *App) options(cfg config.Config) map[string]map[string]string {
 		out[k.Name()] = values
 	}
 	return out
+}
+
+// lighten lists every kind's panel lightening, with the default where none was chosen.
+func (a *App) lighten(cfg config.Config) map[string]float64 {
+	out := map[string]float64{}
+	for _, k := range a.deps.Widgets.All() {
+		out[k.Name()] = cfg.Lighten(k.Name())
+	}
+	return out
+}
+
+// SetWidgetLighten sets how strongly one widget's panel lightens the background, 0 to 1.
+func (a *App) SetWidgetLighten(kind string, value float64) (State, error) {
+	if _, known := a.deps.Widgets.Get(kind); !known {
+		return a.GetState(), errUnknownWidget
+	}
+	if value < 0 || value > 1 {
+		return a.GetState(), errors.New("Transparency must be between 0 and 100%")
+	}
+	err := a.update(func(c *config.Config) {
+		lighten := map[string]float64{}
+		for k, v := range c.WidgetLighten {
+			lighten[k] = v
+		}
+		lighten[kind] = value
+		c.WidgetLighten = lighten
+	})
+	if err != nil {
+		a.deps.Log.Add(applog.System, "could not save the widget transparency: %v", err)
+		return a.GetState(), errors.New(messageSaveFailed)
+	}
+	a.deps.Log.Add(applog.Kindle, "widget transparency changed: %s %.0f%%", kind, (1-value)*100)
+	return a.GetState(), nil
 }
 
 // SetWidgetOption chooses one of a widget's options, such as its alignment.

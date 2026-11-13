@@ -11,13 +11,18 @@ import (
 // The e-ink panel shows 16 grays, 0, 17, 34 ... 255.
 const grayStep = 17
 
+// panel is a widget's box and how strongly it lightens the picture behind it.
+type panel struct {
+	rect    image.Rectangle
+	lighten float64
+}
+
 type backdropKey struct {
 	background *image.Gray
-	frost      float64
 	panels     string
 }
 
-// The backdrop only changes with the picture, the frost or the layout, and
+// The backdrop only changes with the picture or the panels, and
 // dithering a full screen is slow on the Kindle, so the last one is kept.
 var lastBackdrop struct {
 	sync.Mutex
@@ -27,8 +32,8 @@ var lastBackdrop struct {
 
 // backdrop is the background with the widget panels lightened, dithered to the
 // panel's grays so smooth shading does not break into bands.
-func backdrop(background *image.Gray, frost float64, panels []image.Rectangle) *image.Gray {
-	key := backdropKey{background, frost, fmt.Sprint(panels)}
+func backdrop(background *image.Gray, panels []panel) *image.Gray {
+	key := backdropKey{background, fmt.Sprint(panels)}
 	lastBackdrop.Lock()
 	defer lastBackdrop.Unlock()
 	if lastBackdrop.img != nil && lastBackdrop.key == key {
@@ -37,8 +42,8 @@ func backdrop(background *image.Gray, frost float64, panels []image.Rectangle) *
 	img := image.NewGray(image.Rect(0, 0, Width, Height))
 	xdraw.Draw(img, img.Bounds(), background, image.Point{}, xdraw.Src)
 	p := painter{dst: img}
-	for _, r := range panels {
-		p.lighten(r, frost)
+	for _, pn := range panels {
+		p.lighten(pn.rect, pn.lighten)
 	}
 	dither(img, image.Point{})
 	lastBackdrop.key, lastBackdrop.img = key, img
