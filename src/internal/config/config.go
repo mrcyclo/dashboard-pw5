@@ -42,6 +42,14 @@ const (
 	DefaultLighten = 0.7
 )
 
+// App is a program the apps widget can start or bring to the front.
+type App struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Path is the program or shortcut chosen, started as is.
+	Path string `json:"path"`
+}
+
 // Display holds what the Kindle fetches from the PC to decide how to draw.
 type Display struct {
 	FullRefreshMinutes   int `json:"full_refresh_minutes"`
@@ -73,6 +81,8 @@ type Config struct {
 	WidgetLighten map[string]float64 `json:"widget_lighten,omitempty"`
 	// Per widget kind, the options it offers (such as "align") and their chosen values.
 	WidgetOptions map[string]map[string]string `json:"widget_options,omitempty"`
+	// Apps lists the apps widget's programs, in the order it shows them.
+	Apps []App `json:"apps,omitempty"`
 	// PCID tells this PC apart from others on the LAN, so the Kindle reconnects to the same one.
 	PCID string `json:"pc_id,omitempty"`
 }
@@ -178,6 +188,13 @@ func (c Config) Validate() error {
 	}
 	if !inUnit(c.Background.FocusX) || !inUnit(c.Background.FocusY) {
 		return errors.New("config: background focus must be between 0 and 1")
+	}
+	ids := map[string]bool{}
+	for _, a := range c.Apps {
+		if a.ID == "" || a.Path == "" || ids[a.ID] {
+			return errors.New("config: every app needs its own id and a path")
+		}
+		ids[a.ID] = true
 	}
 	if !ValidLayout(c.Layout) {
 		return errors.New("config: widget layout is not valid")

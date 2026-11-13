@@ -22,6 +22,7 @@ import (
 	"claudedash/internal/desk"
 	"claudedash/internal/discovery"
 	"claudedash/internal/httpd"
+	"claudedash/internal/launcher"
 	"claudedash/internal/media"
 	"claudedash/internal/media/winmedia"
 	"claudedash/internal/tokensource"
@@ -111,6 +112,8 @@ func main() {
 		Listening:        lan.listening,
 		SetUsageInterval: func(seconds int) { usagePoll.setInterval(time.Duration(seconds) * time.Second) },
 		PickFile:         sh.pickPicture,
+		PickApp:          sh.pickApp,
+		Launcher:         launcher.Windows{},
 		OpenPath:         openPath,
 		LanIP: func() string {
 			kindleIP, _, _ := lan.LastClient()

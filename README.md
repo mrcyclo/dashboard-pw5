@@ -51,8 +51,13 @@ The Kindle screen is a grid of 6 columns by 8 rows. The top right corner (row 1,
 | Clock | 3×1, 3×2 (larger text) |
 | Claude usage | 6×1, 3×2 (at most four limits) |
 | Music | 6×2, 3×2, 6×1 (without the volume row) |
+| Apps | 3×1, 6×1, 3×2, 6×2 (one program per grid cell) |
 
 The PC describes every widget as a small tree of components (text, bars, icons, pictures, buttons, a clock and a countdown) and the Kindle only draws them. The clock, the countdowns and the drop to 0% at a reset are worked out on the Kindle, so they stay right while the PC is off; the rest shows its last state, and the corner says `PC offline`. The Kindle keeps the last screen on disk and shows it again after a restart.
+
+### Apps widget
+
+On the Layout page, `Add app` picks a program or a shortcut; the dialog opens in the Start menu folder, where every installed program has one. A tap on its icon on the Kindle brings the program's window to the front, restoring it when it is minimized, or starts the program when it has no window open. The list can be reordered; when it is longer than the widget has cells, the first ones are shown.
 
 ### Adding a widget
 
@@ -98,6 +103,7 @@ Every 2 seconds the PC broadcasts a small UDP announcement on port 8378 with its
 | `POST /action/<name>` | Runs a widget button's action, such as `media.next`, and answers like `/screen.json` |
 | `GET /icons/<name>.svg` | An icon named by a tree |
 | `GET /media/art.png` | Grayscale cover art, fitted to 400 x 400 |
+| `GET /apps/<id>.png` | The icon of a program in the apps widget, grayscale, 128 x 128 |
 | `GET /background.png?w=W&h=H` | The background picture, cropped and in grayscale |
 | `GET /kindle.json` | Display settings: light, warmth, refresh |
 

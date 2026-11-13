@@ -91,6 +91,8 @@ type harness struct {
 	intervals   []int
 	pick        string
 	pickErr     error
+	pickApp     string
+	launcher    *fakeLauncher
 	opened      []string
 	commands    []string
 }
@@ -106,6 +108,7 @@ func newHarness(t *testing.T) *harness {
 		log:         applog.New(nil, 50),
 		tokenExpiry: now.Add(3 * time.Hour),
 		rebindErr:   map[int]error{},
+		launcher:    &fakeLauncher{},
 	}
 	h.configPath = filepath.Join(h.dir, "config.json")
 	h.app = New(Deps{
@@ -131,6 +134,8 @@ func newHarness(t *testing.T) *harness {
 		},
 		SetUsageInterval: func(seconds int) { h.intervals = append(h.intervals, seconds) },
 		PickFile:         func() (string, error) { return h.pick, h.pickErr },
+		PickApp:          func() (string, error) { return h.pickApp, nil },
+		Launcher:         h.launcher,
 		OpenPath: func(path string) error {
 			h.opened = append(h.opened, path)
 			return nil
@@ -683,13 +688,15 @@ func placement(s State, kind string) grid.Placement {
 
 func TestWidgetsInState(t *testing.T) {
 	s := newHarness(t).app.GetState()
-	if len(s.Widgets.Catalog) != 3 || s.Widgets.Catalog[1].Kind != "claude" || s.Widgets.Catalog[1].Label != "Claude usage" {
+	if len(s.Widgets.Catalog) != 4 || s.Widgets.Catalog[1].Kind != "claude" || s.Widgets.Catalog[1].Label != "Claude usage" {
 		t.Fatalf("catalog %+v", s.Widgets.Catalog)
 	}
 	if !reflect.DeepEqual(s.Widgets.Catalog[0].Sizes, []string{"3x1", "3x2"}) || s.Widgets.Catalog[2].Icon != "music" {
 		t.Fatalf("catalog %+v", s.Widgets.Catalog)
 	}
-	if !reflect.DeepEqual(s.Widgets.Layout, config.DefaultLayout()) {
+	// A kind the saved layout does not name yet starts hidden.
+	want := append(config.DefaultLayout(), grid.Placement{Kind: "apps", Size: grid.None})
+	if !reflect.DeepEqual(s.Widgets.Layout, want) {
 		t.Fatalf("layout %+v", s.Widgets.Layout)
 	}
 	if len(s.Widgets.Screen.Widgets) != 3 {
@@ -835,6 +842,7 @@ func TestUnknownKindsAreNotListed(t *testing.T) {
 		{Kind: "clock", Size: "3x2", Col: 0, Row: 1},
 		{Kind: "claude", Size: "none"},
 		{Kind: "media", Size: "none"},
+		{Kind: "apps", Size: "none"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v", got)

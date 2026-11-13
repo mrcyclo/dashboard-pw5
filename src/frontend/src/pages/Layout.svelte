@@ -1,12 +1,35 @@
 <script>
-  import { AlignCenter, AlignLeft, AlignRight, ChartColumn, Clock, LayoutGrid, Music, RefreshCw } from '@lucide/svelte'
-  import { MoveWidget, RefreshKindle, SetWidgetLighten, SetWidgetOption, SetWidgetSize } from '../../bindings/claudedash/internal/desk/app'
-  import { app, call } from '../lib/store.svelte.js'
+  import {
+    AlignCenter,
+    AlignLeft,
+    AlignRight,
+    AppWindow,
+    ChartColumn,
+    ChevronDown,
+    ChevronUp,
+    Clock,
+    LayoutGrid,
+    Music,
+    Plus,
+    RefreshCw,
+    Trash2,
+  } from '@lucide/svelte'
+  import {
+    AddApp,
+    MoveApp,
+    MoveWidget,
+    RefreshKindle,
+    RemoveApp,
+    SetWidgetLighten,
+    SetWidgetOption,
+    SetWidgetSize,
+  } from '../../bindings/claudedash/internal/desk/app'
+  import { app, call, localUrl } from '../lib/store.svelte.js'
   import { canShow } from '../lib/grid.js'
   import KindleScreen from '../lib/KindleScreen.svelte'
 
   // Icons named by each widget kind; a kind this window does not know gets a plain one.
-  const ICONS = { clock: Clock, 'chart-column': ChartColumn, music: Music }
+  const ICONS = { clock: Clock, 'chart-column': ChartColumn, music: Music, 'app-window': AppWindow }
   // Option choices drawn as an icon; others show their label.
   const CHOICE_ICONS = { left: AlignLeft, center: AlignCenter, right: AlignRight }
 
@@ -141,6 +164,41 @@
                 </div>
               {/each}
             </div>
+            {#if kind.kind === 'apps'}
+              <div class="mt-2.5 flex flex-col gap-1" role="presentation" onclick={(event) => event.stopPropagation()}>
+                {#each widgets.apps ?? [] as item, index (item.id)}
+                  <div class="flex items-center gap-2.5 rounded-[8px] bg-white/[.03] px-2 py-1.5">
+                    {#if item.icon}
+                      <img class="size-[24px] rounded-[4px] bg-white" src={localUrl(`/apps/${item.id}.png?v=${item.icon}`)} alt="" />
+                    {:else}
+                      <span class="grid size-[24px] place-items-center text-base-content/60"><AppWindow size={16} /></span>
+                    {/if}
+                    <span class="min-w-0 flex-1 truncate text-sm">{item.name}</span>
+                    <button class="btn btn-ghost btn-xs btn-square" aria-label="Move {item.name} up" disabled={index === 0} onclick={() => call(() => MoveApp(item.id, -1))}>
+                      <ChevronUp size={14} />
+                    </button>
+                    <button
+                      class="btn btn-ghost btn-xs btn-square"
+                      aria-label="Move {item.name} down"
+                      disabled={index === widgets.apps.length - 1}
+                      onclick={() => call(() => MoveApp(item.id, 1))}
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                    <button class="btn btn-ghost btn-xs btn-square" aria-label="Remove {item.name}" onclick={() => call(() => RemoveApp(item.id))}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                {/each}
+                <div class="flex items-center gap-3">
+                  <button class="btn btn-sm gap-1.5" onclick={() => call(AddApp)}>
+                    <Plus size={15} />
+                    Add app
+                  </button>
+                  <span class="text-sm text-base-content/60">A tap on the Kindle opens the program, or brings its window to the front</span>
+                </div>
+              </div>
+            {/if}
             {#if current !== 'none'}
               <div class="mt-2.5 flex items-center gap-3" role="presentation" onclick={(event) => event.stopPropagation()}>
                 <span class="w-[150px] shrink-0 text-sm text-base-content/70">Panel transparency</span>

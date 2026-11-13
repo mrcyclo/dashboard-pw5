@@ -25,6 +25,13 @@ func (f *fakeScreens) Screen(battery int, ok bool) widget.Screen {
 	return widget.Screen{Layout: "L1", Widgets: []widget.PlacedWidget{{Kind: "clock", Hash: "h1"}}}
 }
 
+func (f *fakeScreens) AppIcon(id string) ([]byte, string, bool) {
+	if id != "a1" {
+		return nil, "", false
+	}
+	return []byte("png-a1"), "h1", true
+}
+
 func (f *fakeScreens) Act(name string) error {
 	f.acted = append(f.acted, name)
 	return f.actErr
@@ -121,6 +128,19 @@ func TestBaseEndpointsStillServe(t *testing.T) {
 	for _, path := range []string{"/kindle.json"} {
 		if rec := do(h, http.MethodGet, path); rec.Code != 200 {
 			t.Errorf("%s: code %d", path, rec.Code)
+		}
+	}
+}
+
+func TestAppIconServed(t *testing.T) {
+	h := screenServer(&fakeScreens{})
+	rec := do(h, http.MethodGet, "/apps/a1.png?v=h1")
+	if rec.Code != 200 || rec.Header().Get("Content-Type") != "image/png" || rec.Body.String() != "png-a1" {
+		t.Fatalf("code %d type %q body %q", rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
+	}
+	for _, path := range []string{"/apps/nope.png", "/apps/a1", "/apps/x/a1.png"} {
+		if rec := do(h, http.MethodGet, path); rec.Code != 404 {
+			t.Errorf("%s: %d", path, rec.Code)
 		}
 	}
 }

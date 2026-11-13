@@ -296,3 +296,19 @@ func TestBatteryIconHoldsTheLevel(t *testing.T) {
 		t.Fatal("the number inside changes with the level")
 	}
 }
+
+func TestButtonWithAPictureDrawsIt(t *testing.T) {
+	dark := image.NewGray(image.Rect(0, 0, 64, 64))
+	img := canvas()
+	root := tree.Node{"kind": "row", "children": []any{
+		map[string]any{"kind": "button", "src": "/apps/a1.png", "size": 88.0, "action": "apps.open.a1"},
+	}}
+	_, buttons, _ := Draw(img, state(widget("apps", image.Rect(48, 48, 610, 228), root)), testFonts(t), pictureAssets{dark})
+	if len(buttons) != 1 || buttons[0].Action != "apps.open.a1" {
+		t.Fatalf("%+v", buttons)
+	}
+	r := buttons[0].Rect
+	if got := blockMean(img, r.Inset(10)); got > 20 {
+		t.Fatalf("the picture fills the button: mean %v", got)
+	}
+}

@@ -147,3 +147,17 @@ func TestWidgetLighten(t *testing.T) {
 		t.Fatalf("%v %v", s.Widgets[0].Lighten, s.Widgets[1].Lighten)
 	}
 }
+
+func TestButtonPicturesAreAssets(t *testing.T) {
+	tree := map[string]any{"kind": "col", "children": []any{
+		map[string]any{"kind": "button", "src": "/apps/a1.png?v=h1", "size": 88, "action": "apps.open.a1"},
+	}}
+	s, _, err := Accept(nil, reply(t, "L", []any{widget("apps", "h", map[string]any{"tree": tree})}, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assets := Assets(s)
+	if len(assets) != 1 || assets[0].Path != "/apps/a1.png?v=h1" || assets[0].Key != "image:/apps/a1.png?v=h1" {
+		t.Fatalf("%+v", assets)
+	}
+}

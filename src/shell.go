@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 
@@ -87,6 +88,19 @@ func (s *shell) pickPicture() (string, error) {
 		AddFilter("Pictures (*.jpg, *.jpeg, *.png)", "*.jpg;*.jpeg;*.png").
 		PromptForSingleSelection()
 	// Wails reports a cancelled dialog as an error with no path; that is not a failure.
+	if path == "" {
+		return "", nil
+	}
+	return path, err
+}
+
+// pickApp asks for a program or shortcut, starting in the Start menu where every installed one has a shortcut.
+func (s *shell) pickApp() (string, error) {
+	path, err := s.wails.Dialog.OpenFile().
+		SetTitle("Choose a program for the apps widget").
+		AddFilter("Programs and shortcuts (*.exe, *.lnk)", "*.exe;*.lnk").
+		SetDirectory(filepath.Join(os.Getenv("ProgramData"), `Microsoft\Windows\Start Menu\Programs`)).
+		PromptForSingleSelection()
 	if path == "" {
 		return "", nil
 	}

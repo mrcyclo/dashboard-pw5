@@ -14,6 +14,8 @@ type ScreenSource interface {
 	// Screen builds the reply; battery is the Kindle's charge when ok.
 	Screen(battery int, ok bool) widget.Screen
 	Act(name string) error
+	// AppIcon is the picture of an apps widget tile, and its hash.
+	AppIcon(id string) (pngData []byte, hash string, ok bool)
 }
 
 // WithScreens adds the widget endpoints in front of base: /screen.json,
@@ -55,6 +57,26 @@ func WithScreens(base http.Handler, s ScreenSource, bg BackgroundSource, d Displ
 			return
 		}
 		reply(w, 0, false)
+	})
+	mux.HandleFunc("/apps/", func(w http.ResponseWriter, r *http.Request) {
+		if !allow(w, r, http.MethodGet) {
+			return
+		}
+		name := strings.TrimPrefix(r.URL.Path, "/apps/")
+		id, isPNG := strings.CutSuffix(name, ".png")
+		if !isPNG || id == "" || strings.Contains(id, "/") {
+			http.NotFound(w, r)
+			return
+		}
+		data, hash, ok := s.AppIcon(id)
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("ETag", `"`+hash+`"`)
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Write(data)
 	})
 	mux.HandleFunc("/icons/", func(w http.ResponseWriter, r *http.Request) {
 		if !allow(w, r, http.MethodGet) {

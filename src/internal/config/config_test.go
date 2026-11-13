@@ -392,3 +392,21 @@ func TestWidgetLightenMustBeInRange(t *testing.T) {
 		t.Fatal("0 is a fully see-through panel")
 	}
 }
+
+func TestAppsMustHaveUniqueIDsAndPaths(t *testing.T) {
+	c := Default()
+	c.Apps = []App{{ID: "a1", Name: "Notepad", Path: `C:\Windows\notepad.exe`}}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for _, apps := range [][]App{
+		{{ID: "a1", Path: "x.exe"}, {ID: "a1", Path: "y.exe"}},
+		{{ID: "", Path: "x.exe"}},
+		{{ID: "a1", Path: ""}},
+	} {
+		c.Apps = apps
+		if c.Validate() == nil {
+			t.Errorf("%+v accepted", apps)
+		}
+	}
+}

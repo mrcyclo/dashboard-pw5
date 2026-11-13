@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -80,6 +81,9 @@ type Deps struct {
 	SetUsageInterval func(seconds int)
 	// PickFile shows the file dialog and returns "" when the user cancels.
 	PickFile func() (string, error)
+	// PickApp asks for a program or shortcut, "" when the user cancels.
+	PickApp  func() (string, error)
+	Launcher Launcher
 	OpenPath func(path string) error
 	LanIP    func() string
 	Now      func() time.Time
@@ -115,6 +119,8 @@ type WidgetsState struct {
 	Options map[string]map[string]string `json:"options"`
 	// Lighten has every kind's panel lightening, 0 to 1, defaults filled in.
 	Lighten map[string]float64 `json:"lighten"`
+	// Apps lists the apps widget's programs, in order.
+	Apps []AppState `json:"apps"`
 	// Screen is exactly what the Kindle is sent, for the window's preview.
 	Screen widget.Screen `json:"screen"`
 }
@@ -165,6 +171,10 @@ type App struct {
 	// Changes each time the user asks the Kindle to repaint; "" until the first time.
 	refreshToken string
 	battery      *int
+
+	iconsMu sync.Mutex
+	// icons holds each app's picture by path; see icon.
+	icons map[string]appIcon
 }
 
 func New(d Deps) *App {
@@ -176,7 +186,7 @@ func New(d Deps) *App {
 	}
 	cfg := d.Config
 	cfg.Layout = append(fitCatalog(d.Widgets, cfg.Layout), unknownKinds(d.Widgets, cfg.Layout)...)
-	return &App{deps: d, config: cfg}
+	return &App{deps: d, config: cfg, icons: map[string]appIcon{}}
 }
 
 // retiredSize replaces a size this build no longer offers with the first one
@@ -306,12 +316,14 @@ func (a *App) GetState() State {
 		Layout:  knownKinds(a.deps.Widgets, cfg.Layout),
 		Options: a.options(cfg),
 		Lighten: a.lighten(cfg),
+		Apps:    a.appStates(cfg.Apps),
 		Screen: widget.BuildScreen(a.deps.Widgets, cfg.Layout, widget.Data{
 			Now:     now,
 			Usage:   snapshot,
 			Media:   state.Media,
 			Options: cfg.WidgetOptions,
 			Lighten: a.lighten(cfg),
+			Apps:    a.appTiles(cfg.Apps),
 		}),
 	}
 	a.mu.Lock()
@@ -611,9 +623,10 @@ func (a *App) Screen(battery int, ok bool) widget.Screen {
 	layout := a.config.Layout
 	options := a.config.WidgetOptions
 	lighten := a.lighten(a.config)
+	apps := a.config.Apps
 	a.mu.Unlock()
 
-	d := widget.Data{Now: a.deps.Now(), Usage: a.deps.Usage.Latest(), Options: options, Lighten: lighten}
+	d := widget.Data{Now: a.deps.Now(), Usage: a.deps.Usage.Latest(), Options: options, Lighten: lighten, Apps: a.appTiles(apps)}
 	if a.deps.Media != nil {
 		d.Media = a.deps.Media.Snapshot()
 	}
@@ -622,6 +635,9 @@ func (a *App) Screen(battery int, ok bool) widget.Screen {
 
 // Act implements httpd.ScreenSource: it runs a widget button's action.
 func (a *App) Act(name string) error {
+	if id, ok := strings.CutPrefix(name, widget.AppActionPrefix); ok {
+		return a.openApp(id)
+	}
 	action, ok := a.deps.Widgets.Action(name)
 	if !ok {
 		return widget.ErrUnknownAction

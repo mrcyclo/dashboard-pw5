@@ -247,7 +247,7 @@ func TestDefaultCatalog(t *testing.T) {
 	for _, k := range c.All() {
 		names = append(names, k.Name())
 	}
-	if !reflect.DeepEqual(names, []string{"clock", "claude", "media"}) {
+	if !reflect.DeepEqual(names, []string{"clock", "claude", "media", "apps"}) {
 		t.Fatal(names)
 	}
 	action, ok := c.Action("media.next")
@@ -330,7 +330,7 @@ func worstSnapshot() usage.Snapshot {
 func TestEverySizeFitsItsBox(t *testing.T) {
 	vol := 100
 	playing := media.State{Active: true, Title: "Song", Artist: "Band", App: "Chrome", Playing: true, Art: "a", Volume: &vol}
-	data := Data{Now: testNow, Usage: worstSnapshot(), Media: playing}
+	data := Data{Now: testNow, Usage: worstSnapshot(), Media: playing, Apps: tiles(20)}
 	for _, k := range Default(nil).All() {
 		for _, size := range k.Sizes() {
 			s, _ := grid.ParseSize(size)

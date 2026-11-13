@@ -186,7 +186,8 @@ func collectImages(node any, seen map[string]bool, out *[]Asset) {
 	if !ok {
 		return
 	}
-	if src := text(n["src"]); n["kind"] == "image" && src != "" && !seen[src] {
+	// Pictures come as images or as the face of a button, such as an app's icon.
+	if src := text(n["src"]); (n["kind"] == "image" || n["kind"] == "button") && src != "" && !seen[src] {
 		seen[src] = true
 		*out = append(*out, Asset{Key: "image:" + src, Path: src})
 	}

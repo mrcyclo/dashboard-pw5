@@ -39,7 +39,9 @@
     <img class="absolute object-cover" style={pos(b)} src={localUrl(node.src)} alt="" draggable="false" />
   {:else if node.kind === 'button'}
     <div class="absolute grid place-items-center" style={pos(b)}>
-      {#if node.plain}
+      {#if node.src}
+        <img style="width:{Math.min(b.w, b.h)}px;height:{Math.min(b.w, b.h)}px" src={localUrl(node.src)} alt="" draggable="false" />
+      {:else if node.plain}
         <img
           class={node.disabled ? 'opacity-40' : ''}
           style="width:{Math.min(b.w, b.h) * 0.63}px;height:{Math.min(b.w, b.h) * 0.63}px"

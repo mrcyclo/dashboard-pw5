@@ -20,6 +20,8 @@ type Data struct {
 	Options map[string]map[string]string
 	// Lighten holds how strongly each kind's panel lightens the background.
 	Lighten map[string]float64
+	// Apps lists the programs of the apps widget, in order.
+	Apps []AppTile
 }
 
 // Option returns the value chosen for a kind's option, or fallback when none was.
@@ -90,7 +92,7 @@ func NewCatalog(kinds ...Kind) *Catalog {
 
 // Default lists every widget the dashboard offers, in the order the window shows them.
 func Default(do func(cmd string) (media.State, error)) *Catalog {
-	return NewCatalog(clockKind{}, claudeKind{}, NewMedia(do))
+	return NewCatalog(clockKind{}, claudeKind{}, NewMedia(do), appsKind{})
 }
 
 func (c *Catalog) All() []Kind {

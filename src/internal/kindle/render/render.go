@@ -269,6 +269,11 @@ func (p painter) image(r image.Rectangle, key string) {
 // button is a white disc with a ring and the icon, or the icon alone when plain.
 func (p painter) button(r image.Rectangle, n tree.Node) {
 	side := min(r.Dx(), r.Dy())
+	if src, _ := n["src"].(string); src != "" {
+		x, y := r.Min.X+(r.Dx()-side)/2, r.Min.Y+(r.Dy()-side)/2
+		p.image(image.Rect(x, y, x+side, y+side), "image:"+src)
+		return
+	}
 	disabled := n["disabled"] == true
 	icon, _ := n["icon"].(string)
 	if n["plain"] == true {
