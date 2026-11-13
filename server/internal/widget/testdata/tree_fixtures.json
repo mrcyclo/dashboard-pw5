@@ -1,0 +1,110 @@
+[
+  {
+    "name": "column stretches its children and spaces them by the gap",
+    "box": {"w": 200, "h": 300},
+    "tree": {"kind": "col", "gap": 10, "children": [
+      {"kind": "text", "id": "t1", "text": "Hi", "size": 20},
+      {"kind": "bar", "id": "b1", "percent": 50, "height": 8},
+      {"kind": "rule", "id": "r1", "thickness": 2},
+      {"kind": "text", "id": "t2", "text": "Hello", "size": 10}
+    ]},
+    "expect": [
+      {"id": "t1", "x": 0, "y": 0, "w": 200, "h": 26},
+      {"id": "b1", "x": 0, "y": 36, "w": 200, "h": 8},
+      {"id": "r1", "x": 0, "y": 54, "w": 200, "h": 2},
+      {"id": "t2", "x": 0, "y": 66, "w": 200, "h": 13}
+    ]
+  },
+  {
+    "name": "a growing space pushes the last child to the right",
+    "box": {"w": 300, "h": 50},
+    "tree": {"kind": "row", "gap": 0, "align": "center", "children": [
+      {"kind": "text", "id": "a", "text": "A", "size": 20},
+      {"kind": "space", "size": 0, "grow": 1},
+      {"kind": "icon", "id": "i", "name": "play", "size": 30}
+    ]},
+    "expect": [
+      {"id": "a", "x": 0, "y": 12, "w": 10, "h": 26},
+      {"id": "i", "x": 270, "y": 10, "w": 30, "h": 30}
+    ]
+  },
+  {
+    "name": "a growing text gets only the room that is left",
+    "box": {"w": 100, "h": 40},
+    "tree": {"kind": "row", "gap": 10, "align": "center", "children": [
+      {"kind": "text", "id": "t", "text": "Long title here", "size": 20, "grow": 1},
+      {"kind": "icon", "id": "i", "name": "next", "size": 20}
+    ]},
+    "expect": [
+      {"id": "t", "x": 0, "y": 7, "w": 70, "h": 26},
+      {"id": "i", "x": 80, "y": 10, "w": 20, "h": 20}
+    ]
+  },
+  {
+    "name": "a centered column centers a nested row",
+    "box": {"w": 200, "h": 100},
+    "tree": {"kind": "col", "gap": 0, "align": "center", "children": [
+      {"kind": "text", "id": "t", "text": "Title", "size": 20},
+      {"kind": "row", "gap": 4, "align": "center", "children": [
+        {"kind": "icon", "id": "i1", "name": "play", "size": 16},
+        {"kind": "icon", "id": "i2", "name": "next", "size": 16}
+      ]}
+    ]},
+    "expect": [
+      {"id": "t", "x": 75, "y": 0, "w": 50, "h": 26},
+      {"id": "i1", "x": 82, "y": 26, "w": 16, "h": 16},
+      {"id": "i2", "x": 102, "y": 26, "w": 16, "h": 16}
+    ]
+  },
+  {
+    "name": "leftover height is shared by grow weight",
+    "box": {"w": 100, "h": 110},
+    "tree": {"kind": "col", "gap": 0, "children": [
+      {"kind": "bar", "id": "b1", "percent": 10, "height": 10, "grow": 1},
+      {"kind": "bar", "id": "b2", "percent": 20, "height": 10, "grow": 2}
+    ]},
+    "expect": [
+      {"id": "b1", "x": 0, "y": 0, "w": 100, "h": 40},
+      {"id": "b2", "x": 0, "y": 40, "w": 100, "h": 70}
+    ]
+  },
+  {
+    "name": "nothing is drawn outside the widget",
+    "box": {"w": 50, "h": 50},
+    "tree": {"kind": "row", "gap": 0, "align": "center", "children": [
+      {"kind": "icon", "id": "big", "name": "note", "size": 80}
+    ]},
+    "expect": [
+      {"id": "big", "x": 0, "y": 0, "w": 50, "h": 50}
+    ]
+  },
+  {
+    "name": "an unknown kind is skipped, with no gap left for it",
+    "box": {"w": 100, "h": 100},
+    "tree": {"kind": "col", "gap": 10, "children": [
+      {"kind": "text", "id": "a", "text": "A", "size": 20},
+      {"kind": "weather_globe", "id": "x", "size": 40},
+      {"kind": "text", "id": "b", "text": "B", "size": 20}
+    ]},
+    "expect": [
+      {"id": "a", "x": 0, "y": 0, "w": 100, "h": 26},
+      {"id": "b", "x": 0, "y": 36, "w": 100, "h": 26}
+    ]
+  },
+  {
+    "name": "columns in a row take the full row height and buttons keep their size",
+    "box": {"w": 300, "h": 60},
+    "tree": {"kind": "row", "gap": 10, "align": "center", "children": [
+      {"kind": "col", "gap": 0, "grow": 1, "children": [
+        {"kind": "text", "id": "title", "text": "Song", "size": 20, "bold": true},
+        {"kind": "text", "id": "artist", "text": "Band", "size": 10}
+      ]},
+      {"kind": "button", "id": "pp", "icon": "play", "size": 40, "action": "media.play-pause"}
+    ]},
+    "expect": [
+      {"id": "title", "x": 0, "y": 0, "w": 250, "h": 26},
+      {"id": "artist", "x": 0, "y": 26, "w": 250, "h": 13},
+      {"id": "pp", "x": 260, "y": 10, "w": 40, "h": 40}
+    ]
+  }
+]
