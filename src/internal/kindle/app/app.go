@@ -121,6 +121,9 @@ type loop struct {
 	bgLoading  string
 	// failedShow holds regions FBInk could not show; they go out again with the next draw.
 	failedShow map[string]bool
+	// paintedCorner is what the corner covers on the panel now. E-ink keeps old
+	// pixels, so a corner whose text got shorter repaints this area too.
+	paintedCorner image.Rectangle
 
 	assets  *assetStore
 	refresh *string
@@ -266,6 +269,7 @@ func (l *loop) draw(names []string, full, flash bool) {
 			return
 		}
 		clear(l.failedShow)
+		l.paintedCorner = l.corner.Region
 		return
 	}
 	for name := range l.failedShow {
@@ -278,12 +282,18 @@ func (l *loop) draw(names []string, full, flash bool) {
 			continue
 		}
 		shown[name] = true
+		if name == "corner" {
+			r = r.Union(l.paintedCorner)
+		}
 		if err := l.c.Display.Show(l.img, r, false); err != nil {
 			l.logf("display %s: %v", name, err)
 			l.failedShow[name] = true
 			continue
 		}
 		delete(l.failedShow, name)
+		if name == "corner" {
+			l.paintedCorner = l.corner.Region
+		}
 	}
 }
 

@@ -565,3 +565,46 @@ func TestActionReplyFromAnOldPCIsIgnored(t *testing.T) {
 		t.Fatalf("a reply from the PC left behind must only free its slot: actions %d", l.actions)
 	}
 }
+
+// lastShown is the last region drawn without a full repaint.
+func lastShown(d *fakeDisplay) image.Rectangle {
+	calls := d.snapshot()
+	for i := len(calls) - 1; i >= 0; i-- {
+		if !calls[i].full {
+			return calls[i].rect
+		}
+	}
+	return image.Rectangle{}
+}
+
+// E-ink keeps whatever is not repainted, so a corner that got narrower must
+// still repaint where its longer text was.
+func TestShorterBatteryTextClearsTheOldDigits(t *testing.T) {
+	d := &fakeDisplay{}
+	l := newLoop(Config{Dir: t.TempDir(), Fonts: fonts(t), Display: d, Runner: &fakeRunner{}, Now: time.Now})
+	l.battery, l.hasBattery = 100, true
+	l.draw(nil, true, false)
+	wide := l.corner.Region
+	l.battery = 99
+	l.draw([]string{"corner"}, false, false)
+	if got := lastShown(d); !wide.In(got) {
+		t.Fatalf("repainted %v, but 100%% covered %v", got, wide)
+	}
+}
+
+func TestReconnectingClearsTheOfflineMark(t *testing.T) {
+	p := newPC(t)
+	d := &fakeDisplay{}
+	l := newLoop(Config{Dir: t.TempDir(), Fonts: fonts(t), Display: d, Runner: &fakeRunner{}, Now: time.Now})
+	l.apply(p.screen())
+	l.offline = true
+	l.draw([]string{"corner"}, false, false)
+	marked := l.corner.Region
+	l.apply(p.screen())
+	if l.offline {
+		t.Fatal("a reply from the PC ends offline")
+	}
+	if got := lastShown(d); !marked.In(got) {
+		t.Fatalf("repainted %v, but PC offline covered %v", got, marked)
+	}
+}

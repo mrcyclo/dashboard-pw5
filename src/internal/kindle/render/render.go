@@ -23,19 +23,24 @@ const (
 )
 
 const (
-	padding    = 24
-	cornerH    = 150
-	exitW      = 110
-	refreshW   = 90
-	cornerText = 35
-	cornerIcon = 45
+	padding     = 24
+	cornerH     = 150
+	exitW       = 110
+	refreshW    = 90
+	cornerText  = 35
+	cornerIcon  = 45
+	batteryW    = 100
+	batteryH    = 48
+	batteryText = 30
 )
 
 var (
 	black = color.Gray{Y: 0}
 	white = color.Gray{Y: 255}
 	dim   = color.Gray{Y: 85}
-	faded = color.Gray{Y: 153}
+	// One of the panel's 16 grays, light enough for black digits on top.
+	batteryShade = color.Gray{Y: 204}
+	faded        = color.Gray{Y: 153}
 )
 
 // State is everything one frame shows.
@@ -293,6 +298,24 @@ func (p painter) button(r image.Rectangle, n tree.Node) {
 	p.icon(r, icon, side*42/100, disabled)
 }
 
+// battery draws an outlined battery with its tip on the right, shaded light gray
+// up to level percent, with the level written in the middle.
+func (p painter) battery(r image.Rectangle, level int) {
+	const stroke, tipW, tipH, inset = 3, 6, 16, 6
+	level = min(max(level, 0), 100)
+	body := image.Rect(r.Min.X, r.Min.Y, r.Max.X-tipW, r.Max.Y)
+	p.fill(body, black)
+	p.fill(body.Inset(stroke), white)
+	tipY := r.Min.Y + (r.Dy()-tipH)/2
+	p.fill(image.Rect(body.Max.X, tipY, r.Max.X, tipY+tipH), black)
+	inner := body.Inset(inset)
+	p.fill(image.Rect(inner.Min.X, inner.Min.Y, inner.Min.X+inner.Dx()*level/100, inner.Max.Y), batteryShade)
+	label := itoa(level)
+	width := p.fonts.Measure(label, batteryText, true)
+	x := body.Min.X + (body.Dx()-width)/2
+	p.text(image.Rect(x, body.Min.Y, x+width+2, body.Max.Y), label, batteryText, true, black)
+}
+
 func (p painter) corner(st State) Corner {
 	exit := image.Rect(Width-exitW, 0, Width, cornerH)
 	refresh := image.Rect(exit.Min.X-refreshW, 0, exit.Min.X, cornerH)
@@ -307,7 +330,9 @@ func (p painter) corner(st State) Corner {
 		left = r.Min.X
 	}
 	if st.HasBattery {
-		put(itoa(st.Battery)+"%", cornerText, false, 8)
+		icon := image.Rect(left-8-batteryW, (cornerH-batteryH)/2, left-8, (cornerH+batteryH)/2)
+		p.battery(icon, st.Battery)
+		left = icon.Min.X
 	}
 	switch {
 	case st.WifiOff:

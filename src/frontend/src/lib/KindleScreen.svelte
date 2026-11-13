@@ -186,7 +186,16 @@
 
       <div class="pointer-events-none absolute top-0 right-0 flex h-[150px] items-center text-[35px] text-[#111]">
         <!-- Widths match the tap zones in src/internal/kindle/render/render.go. -->
-        {#if battery !== undefined && battery !== null}<span>{battery}%</span>{/if}
+        {#if battery !== undefined && battery !== null}
+          <!-- Same shape as painter.battery: 94x48 body with a 3 px outline, 6x16 tip, gray shade inset 6, level inside. -->
+          <span class="mr-[8px] flex items-center">
+            <span class="relative grid h-[48px] w-[94px] place-items-center border-[3px] border-[#111] bg-white">
+              <span class="absolute top-[3px] bottom-[3px] left-[3px] bg-[#ccc]" style="width: {(82 * Math.min(Math.max(battery, 0), 100)) / 100}px"></span>
+              <span class="relative text-[30px] leading-none font-bold">{Math.min(Math.max(battery, 0), 100)}</span>
+            </span>
+            <span class="h-[16px] w-[6px] bg-[#111]"></span>
+          </span>
+        {/if}
         <span class="grid w-[90px] place-items-center"><RotateCw size={45} strokeWidth={2.5} /></span>
         <span class="grid w-[110px] place-items-center"><X size={50} strokeWidth={2.5} /></span>
       </div>

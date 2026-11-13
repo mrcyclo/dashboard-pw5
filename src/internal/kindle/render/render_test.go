@@ -252,3 +252,41 @@ func TestFlatShadeGetsARegularPattern(t *testing.T) {
 		}
 	}
 }
+
+func ink(img *image.Gray, r image.Rectangle) int {
+	n := 0
+	for y := r.Min.Y; y < r.Max.Y; y++ {
+		for x := r.Min.X; x < r.Max.X; x++ {
+			n += 255 - int(img.GrayAt(x, y).Y)
+		}
+	}
+	return n
+}
+
+// The battery is a battery shape with its level written inside, shaded up to the level.
+func TestBatteryIconHoldsTheLevel(t *testing.T) {
+	draw := func(level int) (*image.Gray, Corner) {
+		img := canvas()
+		st := state()
+		st.Battery, st.HasBattery = level, true
+		_, _, c := Draw(img, st, testFonts(t), noAssets{})
+		return img, c
+	}
+	full, c := draw(100)
+	empty, _ := draw(5)
+	icon := image.Rect(c.Region.Min.X, 0, c.Refresh.Min.X, cornerH)
+	if icon.Dx() < 80 || icon.Dx() > 130 {
+		t.Fatalf("one battery with the number inside, nothing beside it: %v", icon)
+	}
+	// The light gray shade over most of the inside adds about 50 per pixel.
+	if ink(full, icon) < ink(empty, icon)+100000 {
+		t.Fatalf("a full battery is shaded: %d vs %d", ink(full, icon), ink(empty, icon))
+	}
+	blank := canvas()
+	st := state()
+	st.Battery, st.HasBattery = 57, true
+	Draw(blank, st, testFonts(t), noAssets{})
+	if ink(blank, icon) == ink(full, icon) {
+		t.Fatal("the number inside changes with the level")
+	}
+}
