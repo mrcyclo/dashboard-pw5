@@ -168,9 +168,10 @@
       {/if}
 
       {#each widgets as placed (placed.kind)}
-        <div class="absolute inset-0 {mode === 'layout' ? '' : 'pointer-events-none'}" style={offset(placed)}>
+        <!-- Each layer covers the whole screen to share its coordinates, so only the widget's own box takes taps. -->
+        <div class="pointer-events-none absolute inset-0" style={offset(placed)}>
           <div
-            class="absolute {mode === 'layout' ? 'cursor-move' : ''} {selected === placed.kind ? 'outline-[10px] outline-[#ff9900] outline-solid' : ''}"
+            class="absolute {mode === 'layout' ? 'pointer-events-auto cursor-move' : ''} {selected === placed.kind ? 'outline-[10px] outline-[#ff9900] outline-solid' : ''}"
             style="{box(placed.rect)};{background.set ? `background: rgba(255, 255, 255, ${lighten})` : ''}"
             role="button"
             tabindex="-1"
