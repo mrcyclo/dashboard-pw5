@@ -20,7 +20,7 @@ func NewMedia(do func(cmd string) (media.State, error)) Kind {
 func (mediaKind) Name() string    { return "media" }
 func (mediaKind) Label() string   { return "Music" }
 func (mediaKind) Icon() string    { return "music" }
-func (mediaKind) Sizes() []string { return []string{"6x2", "6x1"} }
+func (mediaKind) Sizes() []string { return []string{"6x2", "3x2", "6x1"} }
 
 func (k mediaKind) Actions() map[string]ActionFunc {
 	actions := map[string]ActionFunc{}
@@ -90,7 +90,7 @@ func track(s media.State, titleSize, artistSize int) []Node {
 }
 
 // volumeRow is the quieter button, the level bar, the louder button and the number.
-func volumeRow(s media.State) (Node, bool) {
+func volumeRow(s media.State, side, textSize int) (Node, bool) {
 	if s.Volume == nil {
 		return nil, false
 	}
@@ -98,15 +98,15 @@ func volumeRow(s media.State) (Node, bool) {
 	if s.Muted != nil && *s.Muted {
 		level, text = 0, "Mute"
 	}
-	down := Button("volume-low", 100, "media."+media.CmdVolumeDown).Plain().Patch(
+	down := Button("volume-low", side, "media."+media.CmdVolumeDown).Plain().Patch(
 		Add("vol-bar", "percent", -volumeStep, 0, 100),
 		Add("vol-num", "text", -volumeStep, 0, 100),
 	)
-	up := Button("volume-high", 100, "media."+media.CmdVolumeUp).Plain().Patch(
+	up := Button("volume-high", side, "media."+media.CmdVolumeUp).Plain().Patch(
 		Add("vol-bar", "percent", volumeStep, 0, 100),
 		Add("vol-num", "text", volumeStep, 0, 100),
 	)
-	return Row(16, down, Bar(level, 16).ID("vol-bar").Grow(1), up, Text(text, 43).Bold().ID("vol-num")), true
+	return Row(16, down, Bar(level, 16).ID("vol-bar").Grow(1), up, Text(text, textSize).Bold().ID("vol-num")), true
 }
 
 func (mediaKind) Build(size string, d Data) Node {
@@ -117,10 +117,31 @@ func (mediaKind) Build(size string, d Data) Node {
 		return Row(16, children...)
 	}
 
+	if size == "3x2" {
+		return square(s)
+	}
+
 	row := append([]Node{cover(s, 120), Col(4, track(s, 37, 31)...).ID("track").Grow(1)}, playback(s, 120)...)
 	children := []Node{Text(heading(s), 29).Bold(), Rule(), Space(4), Row(16, row...)}
-	if volume, ok := volumeRow(s); ok {
+	if volume, ok := volumeRow(s, 100, 43); ok {
 		children = append(children, Space(4), volume)
 	}
 	return Col(8, children...)
+}
+
+// square stacks the half-width size: cover with heading, title and artist,
+// then the three buttons centered, then the volume row.
+func square(s media.State) Node {
+	lines := append([]Node{Text(heading(s), 25).Bold()}, track(s, 33, 27)...)
+	controls := append([]Node{Space(0).Grow(1)}, playback(s, 100)...)
+	controls = append(controls, Space(0).Grow(1))
+	children := []Node{
+		Row(16, cover(s, 100), Col(2, lines...).ID("track").Grow(1)),
+		Space(0).Grow(1),
+		Row(24, controls...),
+	}
+	if volume, ok := volumeRow(s, 80, 37); ok {
+		children = append(children, Space(0).Grow(1), volume)
+	}
+	return Col(0, children...)
 }

@@ -158,7 +158,7 @@ func boolp(v bool) *bool { return &v }
 
 func TestMediaIdle(t *testing.T) {
 	k := NewMedia(nil)
-	if !reflect.DeepEqual(k.Sizes(), []string{"6x2", "6x1"}) || k.Label() != "Music" {
+	if !reflect.DeepEqual(k.Sizes(), []string{"6x2", "3x2", "6x1"}) || k.Label() != "Music" {
 		t.Fatal(k.Sizes(), k.Label())
 	}
 	tree := k.Build("6x2", Data{Now: testNow})
@@ -395,5 +395,32 @@ func TestClaudeTallSpreadsItsRows(t *testing.T) {
 	last := children[len(children)-1]
 	if last["kind"] != "space" || last["grow"] == nil {
 		t.Fatal("the room below the last limit is shared too")
+	}
+}
+
+func TestMediaSquareKeepsEveryControl(t *testing.T) {
+	vol := 20
+	state := media.State{Active: true, Title: "Song", Artist: "Band", App: "Chrome", Playing: true, Art: "a", Volume: &vol}
+	tree := NewMedia(nil).Build("3x2", Data{Now: testNow, Media: state})
+	for _, id := range []string{"pp", "vol-bar", "vol-num", "track"} {
+		if byID(tree, id) == nil {
+			t.Errorf("3x2 is missing %s", id)
+		}
+	}
+	if got := strings.Join(texts(tree), "|"); !strings.Contains(got, "Playing · Chrome") || !strings.Contains(got, "Song") {
+		t.Fatal(got)
+	}
+	// At half width the cover, the title and three buttons cannot share one line.
+	for _, row := range byKind(tree, "row") {
+		if byID(row, "pp") != nil && len(byKind(row, "image")) > 0 {
+			t.Fatal("the buttons get a line of their own, below the cover and title")
+		}
+	}
+	actions := map[string]bool{}
+	for _, b := range byKind(tree, "button") {
+		actions[b["action"].(string)] = true
+	}
+	if len(actions) != 5 {
+		t.Fatalf("all five controls: %v", actions)
 	}
 }
