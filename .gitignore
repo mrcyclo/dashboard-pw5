@@ -26,3 +26,6 @@ docs/superpowers/
 
 # Go test binaries built outside the temp folder the antivirus watches
 server/.gotest/
+
+# Kindle package build output
+kindle/dist/

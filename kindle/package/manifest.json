@@ -1,0 +1,10 @@
+{
+  "manifest_version": 2,
+  "id": "claudedash",
+  "name": "Claude Dashboard",
+  "author": "mrcyclo",
+  "description": "Claude usage, music controls and a clock on your Kindle, served by the Claude Dashboard app on your PC.",
+  "version": [1, 0, 0],
+  "dependencies": [],
+  "supported_platforms": ["kindlehf"]
+}

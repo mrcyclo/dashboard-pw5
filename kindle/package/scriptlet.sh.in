@@ -1,0 +1,12 @@
+#!/bin/sh
+# Name: Claude Dashboard
+# Author: mrcyclo
+# Icon: data:image/png;base64,@ICON@
+# DontUseFBInk
+
+# Installed through KPM, KPM launches it; installed by hand, run the launcher directly.
+if [ -d /mnt/us/kmc/kpm/packages/claudedash ] && [ -x /var/local/kmc/bin/kpm ]; then
+    /var/local/kmc/bin/kpm launch claudedash
+else
+    sh /mnt/us/claudedash/launch.sh
+fi
