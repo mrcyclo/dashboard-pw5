@@ -6,7 +6,8 @@
   // Coordinates are reference pixels on the 1236 px wide Kindle screen.
   let { placed, icons, now, measure } = $props()
 
-  const PADDING = 24
+  // Same as padding in src/internal/kindle/render/render.go.
+  const PADDING = 12
 
   let boxes = $derived.by(() => {
     const r = placed.rect

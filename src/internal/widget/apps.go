@@ -53,8 +53,7 @@ func (appsKind) Build(size string, d Data) Node {
 	return Col(0, rows...)
 }
 
-// appTile is the icon with the name below on up to two lines. In a one-row
-// widget the second line does not fit and the Kindle leaves it out.
+// appTile is the icon with the name below on up to two lines.
 func appTile(a AppTile) Node {
 	button := Button("app", appIconSize, AppActionPrefix+a.ID).Plain()
 	if a.Icon != "" {

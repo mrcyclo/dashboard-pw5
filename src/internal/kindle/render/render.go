@@ -23,7 +23,7 @@ const (
 )
 
 const (
-	padding     = 24
+	padding     = 12
 	cornerH     = 150
 	exitW       = 110
 	refreshW    = 90

@@ -336,11 +336,8 @@ func TestEverySizeFitsItsBox(t *testing.T) {
 	for _, k := range Default(nil).All() {
 		for _, size := range k.Sizes() {
 			s, _ := grid.ParseSize(size)
-			inner := float64(grid.CellRect(0, 0, s).H - 48)
-			// The user chose two name lines under full-size app icons; in one row the Kindle drops the second.
-			if k.Name() == "apps" && s.Rows == 1 {
-				continue
-			}
+			// The Kindle keeps 12 px of padding on each side of a widget.
+			inner := float64(grid.CellRect(0, 0, s).H - 24)
 			if got := height(k.Build(size, data)); got > inner {
 				t.Errorf("%s %s: content is %.0f px tall, the box has %.0f", k.Name(), size, got, inner)
 			}
