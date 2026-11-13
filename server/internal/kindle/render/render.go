@@ -99,7 +99,13 @@ func Draw(dst *image.Gray, st State, f Fonts, a Assets) (map[string]image.Rectan
 		return regions, nil, Corner{}
 	}
 	if st.Background != nil {
-		xdraw.Draw(dst, full, st.Background, image.Point{}, xdraw.Src)
+		var panels []image.Rectangle
+		if st.Screen != nil {
+			for _, w := range st.Screen.Widgets {
+				panels = append(panels, w.Rect)
+			}
+		}
+		xdraw.Draw(dst, full, backdrop(st.Background, st.Frost, panels), image.Point{}, xdraw.Src)
 	}
 
 	var buttons []Button
@@ -113,9 +119,6 @@ func Draw(dst *image.Gray, st State, f Fonts, a Assets) (map[string]image.Rectan
 	} else {
 		for _, w := range st.Screen.Widgets {
 			regions[w.Kind] = w.Rect
-			if st.Background != nil {
-				p.lighten(w.Rect, st.Frost)
-			}
 			root := w.Tree
 			if shown, ok := st.Shown[w.Kind]; ok {
 				root = shown
@@ -254,7 +257,10 @@ func (p painter) image(r image.Rectangle, key string) {
 		p.fill(r.Inset(2), color.Gray{Y: 204})
 		return
 	}
-	xdraw.ApproxBiLinear.Scale(p.dst, r, img, img.Bounds(), xdraw.Src, nil)
+	scaled := image.NewGray(image.Rect(0, 0, r.Dx(), r.Dy()))
+	xdraw.ApproxBiLinear.Scale(scaled, scaled.Bounds(), img, img.Bounds(), xdraw.Src, nil)
+	dither(scaled)
+	xdraw.Draw(p.dst, r, scaled, image.Point{}, xdraw.Src)
 }
 
 // button is a white disc with a ring and the icon, or the icon alone when plain.

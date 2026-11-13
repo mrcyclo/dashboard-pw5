@@ -12,9 +12,10 @@ cp ../kindle/package/assets/* ../kindle/dist/claudedash/claudedash/
 cp ../kindle/package/manifest.json ../kindle/package/install.sh ../kindle/package/uninstall.sh ../kindle/package/launch.sh \
     ../kindle/dist/claudedash/
 
-# The book's cover on the Kindle home screen is the app icon, drawn by the PC app's code.
-go run ./tools/genicon
-icon=$(base64 -w0 build/appicon.png)
+# The book's cover on the Kindle home screen: a portrait page with the app icon and name.
+mkdir -p build
+go run ./tools/kindlecover ../kindle/package/assets/NotoSans-Bold.ttf build/kindlecover.png
+icon=$(base64 -w0 build/kindlecover.png)
 sed "s|@ICON@|${icon}|" ../kindle/package/scriptlet.sh.in > "../kindle/dist/claudedash/scriptlets/Claude Dashboard.sh"
 
 echo "Built ../kindle/dist/claudedash"

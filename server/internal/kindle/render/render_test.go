@@ -84,8 +84,8 @@ func TestFrostLightensOnlyWidgets(t *testing.T) {
 	st.Background = image.NewGray(image.Rect(0, 0, Width, Height))
 	st.Frost = 0.5
 	Draw(img, st, testFonts(t), noAssets{})
-	if got := img.GrayAt(100, 100).Y; got < 120 || got > 135 {
-		t.Errorf("inside the widget %d, want about 128", got)
+	if got := blockMean(img, image.Rect(100, 100, 132, 132)); got < 120 || got > 135 {
+		t.Errorf("inside the widget %v, want about 128", got)
 	}
 	if got := img.GrayAt(100, 800).Y; got != 0 {
 		t.Errorf("outside the widget %d, want the picture's 0", got)
@@ -176,5 +176,62 @@ func TestMeasureGrowsWithText(t *testing.T) {
 	f := testFonts(t)
 	if f.Measure("Hello", 30, false) <= f.Measure("Hi", 30, false) || f.Measure("Hi", 60, true) <= f.Measure("Hi", 30, true) {
 		t.Fatal("measure")
+	}
+}
+
+func blockMean(img *image.Gray, r image.Rectangle) float64 {
+	sum := 0
+	for y := r.Min.Y; y < r.Max.Y; y++ {
+		for x := r.Min.X; x < r.Max.X; x++ {
+			sum += int(img.GrayAt(x, y).Y)
+		}
+	}
+	return float64(sum) / float64(r.Dx()*r.Dy())
+}
+
+// The panel shows 16 grays; a smooth picture must be dithered to them, not cut into bands.
+func TestBackgroundIsDitheredToThePanelsGrays(t *testing.T) {
+	bg := image.NewGray(image.Rect(0, 0, Width, Height))
+	for y := 0; y < Height; y++ {
+		for x := 0; x < Width; x++ {
+			bg.Pix[y*bg.Stride+x] = uint8(x * 255 / (Width - 1))
+		}
+	}
+	img := canvas()
+	st := state()
+	st.Background = bg
+	Draw(img, st, testFonts(t), noAssets{})
+	for x := 0; x < Width; x++ {
+		if v := img.GrayAt(x, 800).Y; v%17 != 0 {
+			t.Fatalf("pixel %d is %d, not one of the 16 grays", x, v)
+		}
+	}
+	for _, x := range []int{100, 400, 640, 1000} {
+		r := image.Rect(x, 800, x+32, 832)
+		if got, want := blockMean(img, r), blockMean(bg, r); got < want-4 || got > want+4 {
+			t.Errorf("around x=%d the shade is %.1f, want about %.1f", x, got, want)
+		}
+	}
+}
+
+type pictureAssets struct{ img image.Image }
+
+func (pictureAssets) Icon(string, int) *image.Gray { return nil }
+func (a pictureAssets) Image(string) image.Image   { return a.img }
+
+func TestPictureIsDitheredToThePanelsGrays(t *testing.T) {
+	art := image.NewGray(image.Rect(0, 0, 128, 128))
+	for i := range art.Pix {
+		art.Pix[i] = uint8(i % 128 * 2)
+	}
+	img := canvas()
+	st := state(widget("media", image.Rect(48, 48, 610, 400), tree.Node{"kind": "image", "src": "/art", "w": 128.0, "h": 128.0}))
+	Draw(img, st, testFonts(t), pictureAssets{art})
+	for y := 0; y < Height; y++ {
+		for x := 0; x < Width; x++ {
+			if v := img.GrayAt(x, y).Y; v != 255 && v%17 != 0 {
+				t.Fatalf("pixel (%d,%d) is %d, not one of the 16 grays", x, y, v)
+			}
+		}
 	}
 }
