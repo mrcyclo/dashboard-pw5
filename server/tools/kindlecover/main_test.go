@@ -17,7 +17,8 @@ func TestCoverIsAPortraitPage(t *testing.T) {
 	if b := img.Bounds(); b.Dy() <= b.Dx() {
 		t.Fatalf("a book cover is taller than wide: %v", b)
 	}
-	if c := img.NRGBAAt(300, 330); c == background {
+	// The gauge's center dot sits just below the middle of the icon.
+	if c := img.NRGBAAt(coverWidth/2, iconTop+iconSize*52/100); c == background {
 		t.Fatal("the icon is drawn in the middle")
 	}
 }

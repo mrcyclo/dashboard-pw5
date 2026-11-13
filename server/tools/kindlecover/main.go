@@ -18,12 +18,12 @@ import (
 	"claudedash/internal/tray"
 )
 
-// The Kindle home screen's cover slots are about 1.52 times taller than wide;
-// a squatter picture is shrunk to fit and sits lower than the books beside it.
+// Amazon's recommended cover shape: 1.6 times taller than wide.
 const (
-	coverWidth  = 600
-	coverHeight = 912
+	coverWidth  = 625
+	coverHeight = 1000
 	iconSize    = 440
+	iconTop     = 170
 )
 
 // background matches the icon's tile, so the icon's rounded corners vanish into the page.
@@ -59,7 +59,7 @@ func cover(boldTTF []byte) (*image.NRGBA, error) {
 	if err != nil {
 		return nil, err
 	}
-	at := image.Pt((coverWidth-iconSize)/2, 126)
+	at := image.Pt((coverWidth-iconSize)/2, iconTop)
 	draw.Draw(img, image.Rectangle{at, at.Add(image.Pt(iconSize, iconSize))}, icon, image.Point{}, draw.Over)
 
 	bold, err := opentype.Parse(boldTTF)
@@ -74,7 +74,7 @@ func cover(boldTTF []byte) (*image.NRGBA, error) {
 	for i, line := range []string{"Claude", "Dashboard"} {
 		d := font.Drawer{Dst: img, Src: image.White, Face: face}
 		x := (fixed.I(coverWidth) - d.MeasureString(line)) / 2
-		d.Dot = fixed.Point26_6{X: x, Y: fixed.I(656 + i*84)}
+		d.Dot = fixed.Point26_6{X: x, Y: fixed.I(735 + i*84)}
 		d.DrawString(line)
 	}
 	return img, nil
