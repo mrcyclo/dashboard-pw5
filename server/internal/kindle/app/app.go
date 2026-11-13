@@ -319,7 +319,15 @@ func finish(kind, path string, epoch int, key string, resp *http.Response, err e
 }
 
 func (l *loop) startPoll() {
-	if l.base == "" || l.polling || l.sleeping {
+	if l.sleeping {
+		return
+	}
+	// With no PC known yet the Kindle may simply be offline: no beacon can arrive then.
+	if l.base == "" {
+		l.checkWifi()
+		return
+	}
+	if l.polling {
 		return
 	}
 	l.polling = true
@@ -364,17 +372,25 @@ func (l *loop) pollFailed(err error) {
 	if l.failures == 1 {
 		l.logf("poll failed: %v", err)
 	}
-	if !device.WifiOn(l.c.Runner) {
-		device.EnableWifi(l.c.Runner)
-		if !l.wifiOff {
-			l.wifiOff = true
-			l.draw([]string{"corner"}, false, false)
-		}
-	}
+	l.checkWifi()
 	if !l.offline && l.failures >= disconnectedAfter {
 		l.offline = true
 		l.draw([]string{"corner"}, false, false)
 	}
+}
+
+// checkWifi switches Wi-Fi back on when it is off, as the plugin did, and
+// keeps the corner's "Wi-Fi is off" mark in step.
+func (l *loop) checkWifi() {
+	on := device.WifiOn(l.c.Runner)
+	if !on {
+		device.EnableWifi(l.c.Runner)
+	}
+	if on == !l.wifiOff {
+		return
+	}
+	l.wifiOff = !on
+	l.draw([]string{"corner"}, l.scr == nil, false)
 }
 
 func (l *loop) apply(body []byte) {

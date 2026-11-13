@@ -21,16 +21,52 @@ type Runner interface {
 	Run(cmd string) (string, error)
 }
 
-// Shell runs commands with /bin/sh and logs each one.
-type Shell struct {
-	Log func(format string, args ...any)
+// ContextRunner runs a command until it ends or ctx is cancelled, with no other limit.
+type ContextRunner interface {
+	RunContext(ctx context.Context, cmd string) (string, error)
 }
 
+// Shell runs commands with /bin/sh. A command that fails or is slow is logged.
+type Shell struct {
+	Log func(format string, args ...any)
+	// Timeout ends a command that hangs, so a stuck fbink or lipc call can never
+	// freeze the dashboard. Zero means 10 seconds.
+	Timeout time.Duration
+	// Interpreter and Env replace "/bin/sh -c" and add environment; tests use them.
+	Interpreter []string
+	Env         []string
+}
+
+const (
+	defaultTimeout = 10 * time.Second
+	slowCommand    = time.Second
+)
+
 func (s Shell) Run(cmd string) (string, error) {
+	timeout := s.Timeout
+	if timeout <= 0 {
+		timeout = defaultTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return s.RunContext(ctx, cmd)
+}
+
+func (s Shell) RunContext(ctx context.Context, cmd string) (string, error) {
+	interpreter := s.Interpreter
+	if len(interpreter) == 0 {
+		interpreter = []string{"/bin/sh", "-c"}
+	}
+	c := exec.CommandContext(ctx, interpreter[0], append(interpreter[1:], cmd)...)
+	if len(s.Env) > 0 {
+		c.Env = append(os.Environ(), s.Env...)
+	}
+	// Without this, a killed shell's children could keep the output pipe open.
+	c.WaitDelay = time.Second
 	start := time.Now()
-	out, err := exec.Command("/bin/sh", "-c", cmd).CombinedOutput()
-	if s.Log != nil {
-		s.Log("sh %q -> %v in %v %s", cmd, err, time.Since(start).Round(time.Millisecond), strings.TrimSpace(string(out)))
+	out, err := c.CombinedOutput()
+	if took := time.Since(start); s.Log != nil && (err != nil || took > slowCommand) {
+		s.Log("sh %q -> %v in %v %s", cmd, err, took.Round(time.Millisecond), strings.TrimSpace(string(out)))
 	}
 	return string(out), err
 }
@@ -156,8 +192,16 @@ func EnableWifi(r Runner) error {
 
 // PowerEvents reports "goingToScreenSaver" and "outOfScreenSaver" until ctx ends.
 func PowerEvents(ctx context.Context, r Runner, out chan<- string) {
+	const wait = "lipc-wait-event -s 0 com.lab126.powerd goingToScreenSaver,outOfScreenSaver"
 	for ctx.Err() == nil {
-		reply, err := r.Run("lipc-wait-event -s 0 com.lab126.powerd goingToScreenSaver,outOfScreenSaver")
+		var reply string
+		var err error
+		// The wait has no time limit of its own, and must end with the app.
+		if cr, ok := r.(ContextRunner); ok {
+			reply, err = cr.RunContext(ctx, wait)
+		} else {
+			reply, err = r.Run(wait)
+		}
 		fields := strings.Fields(reply)
 		if err != nil || len(fields) == 0 {
 			select {

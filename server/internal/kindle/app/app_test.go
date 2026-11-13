@@ -58,6 +58,19 @@ func (d *fakeDisplay) snapshot() []call {
 type fakeRunner struct {
 	mu       sync.Mutex
 	commands []string
+	// wifiOff makes the Wi-Fi radio read as off.
+	wifiOff bool
+}
+
+func (r *fakeRunner) ran(prefix string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, c := range r.commands {
+		if strings.HasPrefix(c, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *fakeRunner) Run(cmd string) (string, error) {
@@ -65,6 +78,9 @@ func (r *fakeRunner) Run(cmd string) (string, error) {
 	defer r.mu.Unlock()
 	r.commands = append(r.commands, cmd)
 	if strings.Contains(cmd, "wirelessEnable") && strings.HasPrefix(cmd, "lipc-get-prop") {
+		if r.wifiOff {
+			return "0", nil
+		}
 		return "1", nil
 	}
 	if strings.Contains(cmd, "battLevel") {
@@ -415,4 +431,14 @@ func TestManualAddressSkipsDiscovery(t *testing.T) {
 		c.Manual = p.server.Listener.Addr().String()
 	})
 	h.waitState(t, "the PC's screen", online)
+}
+
+func TestWifiOffIsTurnedOnBeforeAnyPCIsKnown(t *testing.T) {
+	h := start(t, t.TempDir(), func(c *Config) {
+		c.Runner.(*fakeRunner).wifiOff = true
+	})
+	h.waitState(t, "the Wi-Fi mark", func(st render.State) bool { return st.WifiOff && st.FirstRun })
+	if !h.runner.ran("lipc-set-prop com.lab126.cmd wirelessEnable 1") {
+		t.Fatal("Wi-Fi must be switched on")
+	}
 }

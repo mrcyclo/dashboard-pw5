@@ -166,3 +166,60 @@ func TestPowerEvents(t *testing.T) {
 	}
 	cancel()
 }
+
+// TestHelperProcess is not a test: the shell tests run it as a command that hangs.
+func TestHelperProcess(t *testing.T) {
+	if os.Getenv("CLAUDEDASH_HELPER") != "hang" {
+		return
+	}
+	time.Sleep(5 * time.Second)
+	os.Exit(0)
+}
+
+func hangingShell(timeout time.Duration) Shell {
+	return Shell{
+		Timeout:     timeout,
+		Interpreter: []string{os.Args[0], "-test.run=TestHelperProcess", "--"},
+		Env:         []string{"CLAUDEDASH_HELPER=hang"},
+	}
+}
+
+func TestShellGivesUpOnAHungCommand(t *testing.T) {
+	start := time.Now()
+	_, err := hangingShell(300 * time.Millisecond).Run("anything")
+	if err == nil || time.Since(start) > 3*time.Second {
+		t.Fatalf("err %v after %v", err, time.Since(start))
+	}
+}
+
+func TestRunContextStopsWithTheContext(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	hangingShell(0).RunContext(ctx, "anything")
+	if time.Since(start) > 3*time.Second {
+		t.Fatal("a cancelled context must kill the command")
+	}
+}
+
+type blockingRunner struct{ fakeRunner }
+
+func (b *blockingRunner) RunContext(ctx context.Context, cmd string) (string, error) {
+	<-ctx.Done()
+	return "", ctx.Err()
+}
+
+func TestPowerEventsWaitsWithTheContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		PowerEvents(ctx, &blockingRunner{}, make(chan string))
+		close(done)
+	}()
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("PowerEvents must end with its context")
+	}
+}
