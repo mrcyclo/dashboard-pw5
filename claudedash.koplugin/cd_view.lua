@@ -90,6 +90,13 @@ local function icon_widget(file, side, dim)
     }
 end
 
+-- blank holds the place of an icon that has not downloaded yet. KOReader
+-- containers ask their content for its size, so it must have one.
+local function blank(side)
+    side = math.max(side, 1)
+    return Widget:new{ dimen = Geom:new{ w = side, h = side } }
+end
+
 local function centered_in(widget, w, h)
     return CenterContainer:new{ dimen = Geom:new{ w = w, h = h }, widget }
 end
@@ -108,10 +115,12 @@ local function button_widget(node, w, h, icon_file)
     local side = math.min(w, h)
     local disabled = node.disabled == true
     if node.plain == true then
-        return centered_in(icon_widget(icon_file(node.icon), math.floor(side * 0.63), disabled) or Widget:new{}, w, h)
+        local icon_side = math.floor(side * 0.63)
+        return centered_in(icon_widget(icon_file(node.icon), icon_side, disabled) or blank(icon_side), w, h)
     end
     local border = Screen:scaleBySize(2)
-    local inner = side - 2 * border
+    local inner = math.max(side - 2 * border, 1)
+    local icon_side = math.floor(side * 0.42)
     return centered_in(FrameContainer:new{
         bordersize = border,
         color = disabled and Blitbuffer.COLOR_GRAY or Blitbuffer.COLOR_BLACK,
@@ -120,7 +129,7 @@ local function button_widget(node, w, h, icon_file)
         background = Blitbuffer.COLOR_WHITE,
         padding = 0,
         margin = 0,
-        centered_in(icon_widget(icon_file(node.icon), math.floor(side * 0.42), disabled) or Widget:new{}, inner, inner),
+        centered_in(icon_widget(icon_file(node.icon), icon_side, disabled) or blank(icon_side), inner, inner),
     }, w, h)
 end
 
@@ -142,7 +151,8 @@ local function draw_box(box, w, h, ctx)
         return LineWidget:new{ background = Blitbuffer.COLOR_DARK_GRAY, dimen = Geom:new{ w = w, h = math.max(h, 1) } }
     end
     if kind == "icon" then
-        return centered_in(icon_widget(ctx.icon_file(node.name), math.min(w, h), node.dim == true) or Widget:new{}, w, h)
+        local side = math.min(w, h)
+        return centered_in(icon_widget(ctx.icon_file(node.name), side, node.dim == true) or blank(side), w, h)
     end
     if kind == "image" then
         local bitmap = type(node.src) == "string" and ctx.image_for("image:" .. node.src)
