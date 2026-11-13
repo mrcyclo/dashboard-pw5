@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"claudedash/internal/grid"
 )
 
 var (
@@ -61,6 +63,8 @@ type Config struct {
 	CloseToTray  bool       `json:"close_to_tray"`
 	Display      Display    `json:"display"`
 	Background   Background `json:"background"`
+	// Where each widget kind sits on the Kindle; see grid.Placement.
+	Layout []grid.Placement `json:"layout"`
 }
 
 func Default() Config {
@@ -77,7 +81,36 @@ func Default() Config {
 			Warmth:               LightUnset,
 		},
 		Background: Background{FocusX: 0.5, FocusY: 0.5, Zoom: MinZoom},
+		Layout:     DefaultLayout(),
 	}
+}
+
+// DefaultLayout is close to the dashboard as it looked before widgets.
+func DefaultLayout() []grid.Placement {
+	return []grid.Placement{
+		{Kind: "clock", Size: "3x1", Col: 0, Row: 0},
+		{Kind: "claude", Size: "6x2", Col: 0, Row: 1},
+		{Kind: "media", Size: "6x2", Col: 0, Row: 6},
+	}
+}
+
+// ValidLayout checks the shape only: kinds are checked against the widget catalog elsewhere.
+func ValidLayout(p []grid.Placement) bool {
+	seen := map[string]bool{}
+	for _, item := range p {
+		if item.Kind == "" || seen[item.Kind] {
+			return false
+		}
+		seen[item.Kind] = true
+		if item.Size == grid.None {
+			continue
+		}
+		size, ok := grid.ParseSize(item.Size)
+		if !ok || !grid.Fits(p, item.Kind, size, item.Col, item.Row) {
+			return false
+		}
+	}
+	return true
 }
 
 // Hash changes whenever a display setting changes; the Kindle watches it to
@@ -117,6 +150,9 @@ func (c Config) Validate() error {
 	if !inUnit(c.Background.FocusX) || !inUnit(c.Background.FocusY) {
 		return errors.New("config: background focus must be between 0 and 1")
 	}
+	if !ValidLayout(c.Layout) {
+		return errors.New("config: widget layout is not valid")
+	}
 	if c.Background.Zoom < MinZoom || c.Background.Zoom > MaxZoom {
 		return fmt.Errorf("config: background zoom %v must be between %v and %v", c.Background.Zoom, MinZoom, MaxZoom)
 	}
@@ -149,6 +185,10 @@ func Load(path string) (Config, error) {
 	c.CacheSeconds = snapUp(c.CacheSeconds, UsageIntervals)
 	if c.Background.Zoom == 0 {
 		c.Background.Zoom = MinZoom
+	}
+	// A broken layout costs only the layout, not the rest of the settings.
+	if c.Layout == nil || !ValidLayout(c.Layout) {
+		c.Layout = DefaultLayout()
 	}
 	c.Display.Frontlight = levelFromLegacy(c.Display.Frontlight)
 	c.Display.Warmth = levelFromLegacy(c.Display.Warmth)

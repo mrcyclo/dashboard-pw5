@@ -2,9 +2,12 @@ package config
 
 import (
 	"os"
+	"reflect"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"claudedash/internal/grid"
 )
 
 func write(t *testing.T, body string) string {
@@ -22,8 +25,9 @@ func TestDefaults(t *testing.T) {
 		Port: 8377, CacheSeconds: 300, CloseToTray: true,
 		Display:    Display{PanelLighten: 0.7, FullRefreshMinutes: 0, MediaIntervalSeconds: 5, Frontlight: -1, Warmth: -1},
 		Background: Background{FocusX: 0.5, FocusY: 0.5, Zoom: 1},
+		Layout:     DefaultLayout(),
 	}
-	if c != want {
+	if !reflect.DeepEqual(c, want) {
 		t.Fatalf("got %+v", c)
 	}
 	if err := c.Validate(); err != nil {
@@ -33,7 +37,7 @@ func TestDefaults(t *testing.T) {
 
 func TestLoadMissingFileUsesDefaults(t *testing.T) {
 	c, err := Load(filepath.Join(t.TempDir(), "no-such.json"))
-	if err != nil || c != Default() {
+	if err != nil || !reflect.DeepEqual(c, Default()) {
 		t.Fatalf("got %+v err %v", c, err)
 	}
 }
@@ -45,7 +49,7 @@ func TestLoadOldFileKeepsNewDefaults(t *testing.T) {
 	}
 	want := Default()
 	want.Port, want.CacheSeconds = 9000, 600
-	if c != want {
+	if !reflect.DeepEqual(c, want) {
 		t.Fatalf("got %+v", c)
 	}
 }
@@ -65,7 +69,7 @@ func TestLoadSnapsLegacyInterval(t *testing.T) {
 func TestLoadInvalidFileReturnsDefaultsAndError(t *testing.T) {
 	for _, body := range []string{`{`, `{"port":70000}`, `{"port":80}`, `{"display":{"panel_lighten":4}}`} {
 		c, err := Load(write(t, body))
-		if err == nil || c != Default() {
+		if err == nil || !reflect.DeepEqual(c, Default()) {
 			t.Errorf("%s: got %+v err %v", body, c, err)
 		}
 	}
@@ -112,7 +116,7 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := Load(path)
-	if err != nil || got != c {
+	if err != nil || !reflect.DeepEqual(got, c) {
 		t.Fatalf("got %+v err %v", got, err)
 	}
 	entries, _ := os.ReadDir(filepath.Dir(path))
@@ -243,5 +247,79 @@ func TestLoadConvertsPercentLights(t *testing.T) {
 	}
 	if _, err = Load(write(t, `{"display":{"panel_lighten":0.7,"media_interval_seconds":5,"frontlight":500}}`)); err == nil {
 		t.Fatal("a value beyond any percentage is still invalid")
+	}
+}
+
+func TestDefaultLayout(t *testing.T) {
+	want := []grid.Placement{
+		{Kind: "clock", Size: "3x1", Col: 0, Row: 0},
+		{Kind: "claude", Size: "6x2", Col: 0, Row: 1},
+		{Kind: "media", Size: "6x2", Col: 0, Row: 6},
+	}
+	if got := DefaultLayout(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %+v", got)
+	}
+	a, b := DefaultLayout(), DefaultLayout()
+	a[0].Col = 2
+	if b[0].Col != 0 {
+		t.Fatal("each call must return its own slice")
+	}
+}
+
+func TestLoadMissingLayoutUsesDefault(t *testing.T) {
+	c, err := Load(write(t, `{"port": 9000}`))
+	if err != nil || !reflect.DeepEqual(c.Layout, DefaultLayout()) || c.Port != 9000 {
+		t.Fatalf("got %+v err %v", c, err)
+	}
+}
+
+func TestLoadInvalidLayoutResetsOnlyLayout(t *testing.T) {
+	body := `{"port": 9000, "layout": [
+		{"kind": "clock", "size": "6x2", "col": 0, "row": 1},
+		{"kind": "claude", "size": "6x2", "col": 0, "row": 1}
+	]}`
+	c, err := Load(write(t, body))
+	if err != nil || c.Port != 9000 || !reflect.DeepEqual(c.Layout, DefaultLayout()) {
+		t.Fatalf("got %+v err %v", c, err)
+	}
+}
+
+func TestValidLayoutRejects(t *testing.T) {
+	cases := map[string][]grid.Placement{
+		"overlap": {
+			{Kind: "a", Size: "6x2", Col: 0, Row: 1},
+			{Kind: "b", Size: "3x1", Col: 2, Row: 2},
+		},
+		"reserved":  {{Kind: "a", Size: "3x1", Col: 3, Row: 0}},
+		"outside":   {{Kind: "a", Size: "6x2", Col: 0, Row: 7}},
+		"duplicate": {{Kind: "a", Size: "3x1", Col: 0, Row: 1}, {Kind: "a", Size: "none"}},
+		"bad size":  {{Kind: "a", Size: "big", Col: 0, Row: 1}},
+		"no kind":   {{Kind: "", Size: "3x1", Col: 0, Row: 1}},
+	}
+	for name, layout := range cases {
+		if ValidLayout(layout) {
+			t.Errorf("%s should be invalid", name)
+		}
+		c := Default()
+		c.Layout = layout
+		if c.Validate() == nil {
+			t.Errorf("%s: Validate should refuse it", name)
+		}
+	}
+	if !ValidLayout(DefaultLayout()) || !ValidLayout(nil) {
+		t.Error("the default and an empty layout are valid")
+	}
+}
+
+func TestHiddenPlacementKeepsPosition(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	c := Default()
+	c.Layout[2] = grid.Placement{Kind: "media", Size: grid.None, Col: 0, Row: 6}
+	if err := Save(path, c); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(path)
+	if err != nil || got.Layout[2] != c.Layout[2] {
+		t.Fatalf("got %+v err %v", got.Layout, err)
 	}
 }
